@@ -1,0 +1,48 @@
+/*
+ * !UCDebug, ARM debugger for RISC OS.
+ * https://github.com/fuentesp/UCDebug
+ * Copyright (C) 2018  University of Cantabria
+ *
+ * !UCDebug was developed by the Computer Architecture and Technology
+ * Group at the University of Cantabria. A comprehensive list of authors
+ * can be found in the file AUTHORS.txt.
+ *
+ * You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+ * pablo.fuentes}@unican.es.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "main.h"
+
+/*Public Types*/
+struct CodeType {
+	wimp_i I_Addr;
+	wimp_i I_Code;
+	wimp_i I_Disem;
+	char T_Addr[PrintedWordSize+1];
+	char T_Code[PrintedWordSize+1];
+	char T_Disem[DisasInstrSize];
+};
+
+/*Public Vars*/
+extern struct CodeType *CodeIcons;
+
+/* Auxiliary Functions */
+void ColorPC(wimp_w CodeWin, int StartAddr, int NumInstr);
+void ColorBrk(wimp_w CodeWin, int StartAddr, int NumInstr);
+
+/*Public Function Protos*/
+wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY);
+void CodeWinRedraw(wimp_w CodeWin, int StartAddr, int NumInstr);

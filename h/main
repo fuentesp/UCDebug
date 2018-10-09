@@ -1,0 +1,194 @@
+/*
+ * !UCDebug, ARM debugger for RISC OS.
+ * https://github.com/fuentesp/UCDebug
+ * Copyright (C) 2018  University of Cantabria
+ *
+ * !UCDebug was developed by the Computer Architecture and Technology
+ * Group at the University of Cantabria. A comprehensive list of authors
+ * can be found in the file AUTHORS.txt.
+ *
+ * You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+ * pablo.fuentes}@unican.es.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/* GLOBAL CONSTANTS */
+#ifndef MAIN
+#define MAIN
+
+#define AppName				"UCDebug"
+#define AppPurpose			"ARM Debugger for RISC OS"
+#define AppAuthors			"ATC group | UC"
+#define AppVersion			"1.2 (09 - Oct - 2018)"
+#define SpriteName			"!ucdebug"
+#define CharSizeX			19
+#define CharSizeY			35
+#define LinSizeY			(CharSizeY+5)
+#define VisRows				12
+#define ConsLinTot			80
+#define ConsLinVis			8
+#define ConsLinSize			65
+#define ComBufNumEntries	15
+#define PrintedWordSize		11
+#define PrintedFloatSize	14
+#define PrintedDoubleSize	22
+#define MemHexBlockSize		63
+#define MemAsciiBlockSize	18
+#define DisasInstrSize		42
+#define NumLinCode			25
+#define NumLinData			25
+#define NumLinUsrCon		25
+#define NumColUsrCon		80
+#define MenuWidth			50
+#define MenuHeight			45
+#define MenuGap				0
+#define MenuEntryLen		12
+#define CodeWinName			"Code"
+#define DataWinName			"Data"
+#define RegsWinName			"CPU Registers"
+#define ConsWinName			"ARM DEBUG"
+#define UsrWinName			"I/O Console"
+#define FPRegsWinName		"FP Registers"
+#define Prompt              "Dbg>"
+#define PromptRUN			"RUN>"
+#define PromptSize			4
+#define AddrMask			0x10000
+#define OffElfFile			0x8000
+#define OffStartCode		0x8088
+#define OffStartData		0x9000
+#define DebugAreaSize		0x20000
+#define MaxBrPoints			15
+#define PC_FG_Colour		0x7	/* BLACK */
+#define PC_BG_Colour		0xA	/* LIGHT_GREEN */
+#define Brk_FG_Colour		0x7	/* BLACK */
+#define Brk_BG_Colour		0xB	/* RED */
+
+/* ExecType Values */
+#define Stop_Ex				0x0000
+#define Run_Go				0x0001
+#define Run_Tr				0x0002
+#define Run_Gt				0x0003
+#define Run_Gd				0x0004
+#define Prg_End				0x0100
+#define SWI_WrC				0x0200
+#define SWI_WrL				0x0300
+#define SWI_InC				0x0400
+#define Stop_Br				0x1000
+#define Ex_DAb				0x1100
+#define Ex_IIns				0x1200
+#define Ex_PAb				0x1300
+#define StateByteMask		0xFF00
+#define StateTypeMask		0xF000
+#define CmdByteMask			0x00FF
+#define SWI_Ex_Mask			0x0F00
+
+/* ELF file-related constants */
+#define OffEntryPoint		0x18
+#define OffElfHeadSize		0x28
+#define OffPrHeadSize		0x2A
+#define OffPrHeadEntries	0x2C
+#define OffVirtAddr			0x8
+
+/* VISIBLE SIZE OF THE WINDOWS */
+#define CodeWinSizeX		(ConsLinSize*CharSizeX)
+#define CodeWinSizeY		(VisRows*LinSizeY)
+#define DataWinSizeX		(90*CharSizeX)
+#define DataWinSizeY		(VisRows*LinSizeY)
+#define ConsWinSizeX		(ConsLinSize*CharSizeX)
+#define ConsWinSizeY		(ConsLinVis*LinSizeY)
+#define RegsWinSizeX		(DataWinSizeX-CodeWinSizeX)
+#define RegsWinSizeY		((CodeWinSizeY+ConsWinSizeY)+39)
+#define FPRegsWinSizeX		(RegsWinSizeX*1.3)
+#define FPRegsWinSizeY		(34*LinSizeY+25)
+#define UsrConsWinSizeX		(40*CharSizeX)
+#define UsrConsWinSizeY		(10*LinSizeY)
+
+/* POSITION OF THE WINDOWS */
+#define PosXConsWin			30
+#define PosYConsWin			135
+#define PosXCodeWin			(PosXConsWin+0)
+#define PosYCodeWin			(PosYConsWin+((ConsLinVis+1)*LinSizeY))
+#define PosXDataWin			(PosXConsWin+0)
+#define PosYDataWin			(PosYConsWin+((ConsLinVis+VisRows+2)*LinSizeY))
+#define PosXRegsWin			(PosXConsWin+(ConsLinSize*CharSizeX)+39)
+#define PosYRegsWin			(PosYConsWin+0)
+#define PosXFPRegsWin		(PosXRegsWin+RegsWinSizeX)
+#define PosYFPRegsWin		(PosYRegsWin-26)
+#define PosXUsrWin			750
+#define PosYUsrWin			1050
+
+/* PUBLIC TYPES */
+struct ContextType {
+	int Regs[16];
+	int CPSR;
+	float FPRegs[32];
+	int FPSCR;
+};
+
+/* Screen status of a window */
+enum WinScreenStatus {
+	wss_ON_SCREEN,	// The window is currently displayed
+	wss_OFF_SCREEN,	// The window is iconised/hidden
+	wss_CLOSED,	// The window is closed
+	wss_CONS_WIN_ATTACHED// The window has been iconised altogether with the Console Window
+};
+
+/* Offsets to the Window Status structure */
+#define CodeWinOffset	0
+#define DataWinOffset	1
+#define RegsWinOffset	2
+#define ConsWinOffset	3
+#define UsrWinOffset	4
+#define FPRegsWinOffset	5
+
+/*COMMON GLOBAL VARIABLES */
+extern osbool mainQuitFlag;
+extern int memDispType;
+extern struct ContextType CurContext;
+extern int AddrElfFile;
+extern int AddrCodeStart;
+extern int AddrCodeCur;
+extern int AddrDataStart;
+extern int AddrDataCur;
+extern int BrkPtList[];
+extern int CurNumBr;
+extern int GTBrkP;
+extern int ExecType;
+extern wimp_t AppTask;
+extern wimp_w CodeWin;
+extern wimp_w DataWin;
+extern wimp_w RegsWin;
+extern wimp_w ConsWin;
+extern wimp_w UsrWin;
+extern wimp_w FPRegsWin;
+extern enum WinScreenStatus WindowStates[]; /* Track status of the windows */
+extern int NumWindows;
+extern wimp_w* WinHandles[];
+extern osbool FPdispDoublePrec;
+extern wimp_menu *IconBarMenu;
+
+/* COMMON GLOBAL FUNCTIONS */
+void mainPoll(void);
+bool validMemAddressRange(int addr);
+bool alignedAddr(int addr);
+void PrintBrk();
+void ToggleBrk(int brkAddr);
+void ClrBrk();
+void EnableFPU();
+void CodeExecute();
+void SetPrompt(char prompt[]);
+void handleMenuSelection(wimp_selection *selection);
+
+#endif

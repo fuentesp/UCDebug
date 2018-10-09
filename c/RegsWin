@@ -1,0 +1,145 @@
+/*
+ * !UCDebug, ARM debugger for RISC OS.
+ * https://github.com/fuentesp/UCDebug
+ * Copyright (C) 2018  University of Cantabria
+ *
+ * !UCDebug was developed by the Computer Architecture and Technology
+ * Group at the University of Cantabria. A comprehensive list of authors
+ * can be found in the file AUTHORS.txt.
+ *
+ * You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+ * pablo.fuentes}@unican.es.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "oslib/wimp.h"
+#include "oslib/wimpspriteop.h"
+#include <string.h>
+/* Added C libraries to avoid warnings */
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "ibar.h"
+#include "main.h"
+#include "RegsWin.h"
+
+/*Private Vars*/
+struct RegType RegsIcons[19];
+
+/* RegsWinCreate opens a Registers view window, showing the value of the CPU registers */
+wimp_w RegsWinCreate(int PosX, int PosY) {
+	wimp_w RegsWin;
+	int i, j;
+
+	RegsWin = open_window(RegsWinName, RegsWinSizeX, RegsWinSizeY, PosX, PosY,
+			RegsWinSizeX, RegsWinSizeY, 0, 0, 0x06);
+
+	strncpy(RegsIcons[0].T_Name, "R0", 9);
+	strncpy(RegsIcons[1].T_Name, "R1", 9);
+	strncpy(RegsIcons[2].T_Name, "R2", 9);
+	strncpy(RegsIcons[3].T_Name, "R3", 9);
+	strncpy(RegsIcons[4].T_Name, "R4", 9);
+	strncpy(RegsIcons[5].T_Name, "R5", 9);
+	strncpy(RegsIcons[6].T_Name, "R6", 9);
+	strncpy(RegsIcons[7].T_Name, "R7", 9);
+	strncpy(RegsIcons[8].T_Name, "R8", 9);
+	strncpy(RegsIcons[9].T_Name, "R9", 9);
+	strncpy(RegsIcons[10].T_Name, "R10", 9);
+	strncpy(RegsIcons[11].T_Name, "R11", 9);
+	strncpy(RegsIcons[12].T_Name, "R12", 9);
+	strncpy(RegsIcons[13].T_Name, "R13 (SP)", 9);
+	strncpy(RegsIcons[14].T_Name, "R14 (LR)", 9);
+	strncpy(RegsIcons[15].T_Name, "R15 (PC)", 9);
+	strncpy(RegsIcons[16].T_Name, "CPSR", 9);
+	strncpy(RegsIcons[17].T_Name, "FLAGS", 9);
+	strncpy(RegsIcons[18].T_Name, "CPU Mode", 9);
+
+	for (i = 0; i < 16; i++) {
+		/* Create the icons of registers 0 - 15 */
+		RegsIcons[i].I_Name = TextIconCreate(RegsWin, 10, 5 + LinSizeY * i, CharSizeX * 8,
+				CharSizeY, RegsIcons[i].T_Name);
+		ChTextBGColour(RegsWin, RegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
+		RegsIcons[i].I_Val = TextIconCreate(RegsWin, 20 + CharSizeX * 10,
+				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val);
+		ChTextBGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
+	}
+
+	for (j = 0; j < 3; j++) {
+		i = j + 16;
+		RegsIcons[i].I_Name = TextIconCreate(RegsWin, 10, 40 + LinSizeY * i,
+				CharSizeX * 8, CharSizeY, RegsIcons[i].T_Name);
+		ChTextBGColour(RegsWin, RegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
+		RegsIcons[i].I_Val = TextIconCreate(RegsWin, 20 + CharSizeX * 10,
+				40 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val);
+		ChTextBGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
+	}
+
+	RegsWinRedraw(RegsWin);
+
+	return RegsWin;
+}
+
+/* RegsWinRedraw updates the Register view window */
+void RegsWinRedraw(wimp_w RegsWin) {
+	int i;
+	char Aux[PrintedWordSize];
+
+	/* Register value within current context */
+	for (i = 0; i < 16; i++) {
+		snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.Regs[i]);
+		strncpy(RegsIcons[i].T_Val, Aux, PrintedWordSize);
+	}
+	/* Display the CPSR, the flags and the CPU mode (the latter two from the CPSR) */
+	sprintf(Aux, "0x%08X", CurContext.CPSR);
+	strncpy(RegsIcons[16].T_Val, Aux, PrintedWordSize);
+
+	strcpy(RegsIcons[17].T_Val, "-----");
+	if ((CurContext.CPSR & 0x80000000) != 0) RegsIcons[17].T_Val[0] = 'N';
+	if ((CurContext.CPSR & 0x40000000) != 0) RegsIcons[17].T_Val[1] = 'Z';
+	if ((CurContext.CPSR & 0x20000000) != 0) RegsIcons[17].T_Val[2] = 'C';
+	if ((CurContext.CPSR & 0x10000000) != 0) RegsIcons[17].T_Val[3] = 'V';
+	if ((CurContext.CPSR & 0x08000000) != 0) RegsIcons[17].T_Val[3] = 'Q';
+
+	strcpy(RegsIcons[18].T_Val, "");
+	switch (CurContext.CPSR & 0x01F) {
+		case 0x010:
+			strcat(RegsIcons[18].T_Val, "usr");
+			break;
+		case 0x011:
+			strcat(RegsIcons[18].T_Val, "fiq");
+			break;
+		case 0x012:
+			strcat(RegsIcons[18].T_Val, "irq");
+			break;
+		case 0x013:
+			strcat(RegsIcons[18].T_Val, "svc");
+			break;
+		case 0x017:
+			strcat(RegsIcons[18].T_Val, "abt");
+			break;
+		case 0x01B:
+			strcat(RegsIcons[18].T_Val, "und");
+			break;
+		case 0x01F:
+			strcat(RegsIcons[18].T_Val, "sys");
+			break;
+		default:
+			strcat(RegsIcons[18].T_Val, "UKN");
+			break;
+	}
+
+	/* Update window */
+	UpdateWindow(RegsWin);
+}

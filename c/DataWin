@@ -1,0 +1,128 @@
+/*
+ * !UCDebug, ARM debugger for RISC OS.
+ * https://github.com/fuentesp/UCDebug
+ * Copyright (C) 2018  University of Cantabria
+ *
+ * !UCDebug was developed by the Computer Architecture and Technology
+ * Group at the University of Cantabria. A comprehensive list of authors
+ * can be found in the file AUTHORS.txt.
+ *
+ * You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+ * pablo.fuentes}@unican.es.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "oslib/wimp.h"
+#include "oslib/wimpspriteop.h"
+/* Added C libraries to avoid warnings */
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "ibar.h"
+#include "DataWin.h"
+
+/* Private Vars */
+struct DataType *DataIcons;
+
+/* DataWinCreate opens a Memory view window */
+wimp_w DataWinCreate(int startAddr, int numAddrs, int displayType, int PosX, int PosY) {
+	wimp_w DataWin;
+	int i;
+
+	if (numAddrs < VisRows) numAddrs = VisRows;
+	DataWin = open_window(DataWinName, DataWinSizeX, numAddrs * LinSizeY, PosX, PosY,
+			DataWinSizeX, DataWinSizeY, 0, 0, 0x06);
+	DataIcons = malloc(sizeof(struct DataType) * numAddrs);
+
+	DataWinRedraw(DataWin, startAddr, numAddrs, displayType);
+
+	/* Create the icons with the memory view (address, values, and ASCII notation) */
+	for (i = 0; i < numAddrs; i++) {
+		DataIcons[i].I_Addr = TextIconCreate(DataWin, 10, 5 + LinSizeY * i,
+				CharSizeX * (PrintedWordSize - 1), CharSizeY, DataIcons[i].T_Addr);
+		ChTextBGColour(DataWin, DataIcons[i].I_Addr, wimp_COLOUR_LIGHT_GREY);
+		DataIcons[i].I_Data = TextIconCreate(DataWin,
+				20 + CharSizeX * (PrintedWordSize - 1), 5 + LinSizeY * i,
+				CharSizeX * (MemHexBlockSize - 2), CharSizeY, DataIcons[i].T_Data);
+		ChTextBGColour(DataWin, DataIcons[i].I_Data, wimp_COLOUR_LIGHT_GREY);
+		DataIcons[i].I_ASCII = TextIconCreate(DataWin,
+				30 + CharSizeX * (PrintedWordSize + MemHexBlockSize - 3),
+				5 + LinSizeY * i, CharSizeX * (MemAsciiBlockSize - 2), CharSizeY,
+				DataIcons[i].T_ASCII);
+		ChTextBGColour(DataWin, DataIcons[i].I_ASCII, wimp_COLOUR_LIGHT_GREY);
+	}
+
+	return DataWin;
+}
+
+/* DataWinRedraw updates the Memory view window */
+void DataWinRedraw(wimp_w DataWin, int startAddr, int numAddrs, int displayType) {
+	int i, j, k, t, data, addr;
+	char Aux[MemAsciiBlockSize];
+
+	if (numAddrs < VisRows) numAddrs = VisRows;
+
+	addr = startAddr;
+	for (i = 0; i < numAddrs; i++) {
+		/* Address */
+		sprintf(Aux, "0x%08X", addr);
+		strncpy(DataIcons[i].T_Addr, Aux, PrintedWordSize);
+		/* Data is displayed in two sets: in hex notation, and in ASCII format */
+		strcpy(DataIcons[i].T_Data, "");
+		strcpy(DataIcons[i].T_ASCII, "");
+		for (j = 0; j < 4; j++) {
+			/* Pick up data and increase pointer */
+			data = *(int *) addr;
+			addr += 4;
+			switch (displayType) {
+				case 0: /* Display in words */
+					snprintf(Aux, sizeof(Aux), "%08X", data);
+					strncat(DataIcons[i].T_Data, Aux,
+							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
+					if (j < 3) strcat(DataIcons[i].T_Data, "       ");
+					break;
+				case 1: /* Display in half-words */
+					snprintf(Aux, sizeof(Aux), "%04X   %04X", (data & 0x0FFFF),
+							((data >> 16) & 0x0FFFF));
+					strncat(DataIcons[i].T_Data, Aux,
+							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
+					if (j < 3) strcat(DataIcons[i].T_Data, "   ");
+					break;
+				case 2: /* Display in bytes */
+					snprintf(Aux, sizeof(Aux), "%02X  %02X  %02X  %02X", data & 0x0FF,
+							(data >> 8) & 0x0FF, (data >> 16) & 0x0FF,
+							(data >> 24) & 0x0FF);
+					strncat(DataIcons[i].T_Data, Aux,
+							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
+					if (j < 3) strcat(DataIcons[i].T_Data, "  ");
+					break;
+			}
+			/* ASCII representation of the memory values */
+			for (k = 0; k < 4; k++) {
+				t = (data >> 8 * k) & 0x0FF;
+				if ((t < 32) || (t > 127))
+					Aux[k] = '.';
+				else
+					Aux[k] = (char) t;
+			}
+			Aux[4] = '\0';
+			strncat(DataIcons[i].T_ASCII, Aux, sizeof(DataIcons[i].T_ASCII));
+		}
+	}
+
+	/* Update window */
+	UpdateWindow(DataWin);
+}

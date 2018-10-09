@@ -1,0 +1,584 @@
+@ !UCDebug, ARM debugger for RISC OS.
+@ https://github.com/fuentesp/UCDebug
+@ Copyright (C) 2018  University of Cantabria
+@
+@ !UCDebug was developed by the Computer Architecture and Technology
+@ Group at the University of Cantabria. A comprehensive list of authors
+@ can be found in the file AUTHORS.txt.
+@
+@ You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+@ pablo.fuentes}@unican.es.
+@
+@ This program is free software: you can redistribute it and/or modify
+@ it under the terms of the GNU General Public License as published by
+@ the Free Software Foundation, either version 3 of the License, or
+@ (at your option) any later version.
+@
+@ This program is distributed in the hope that it will be useful,
+@ but WITHOUT ANY WARRANTY; without even the implied warranty of
+@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+@ GNU General Public License for more details.
+@
+@ You should have received a copy of the GNU General Public License
+@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+.global   EnableFPU
+.global   CodeExecute
+.global   DefCurCtx
+.extern   CurContext
+.extern   BrkPtList
+.extern   CurNumBr
+.extern   GTBrkP
+.extern   ExecType
+
+.equ SWI_Mask,    0xFF000000
+.equ Code_OSExit, 0xEF000011
+.equ Code_OSWriteStr, 0xEF000002
+.equ Code_OSWriteChar, 0xEF000000
+.equ Num_Loop,    1000
+
+
+.data
+
+ourregisters:  .space 68  @ include CPSR
+Loop:          .space  4
+HandPreRel:    .space  4
+HandDatRel:    .space  4
+HandUndRel:    .space  4
+ReturnHandler: .space  4
+
+immediatebreakpointnumber: .word 0
+immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
+
+.text
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Function to activate the FPU
+EnableFPU:
+@enable the FPU
+swi 0x16 @ OS_EnterOS (go to supervisor mode)
+@mrc p15, 0, r0, c1, c1, 2
+@orr r0, r0, #0xC00 @fpu in non-secure
+@mcr p15, 0, r0, c1, c1, 2
+mrc p15, 0, r0, c1, c0, 2 @enable FPU
+orr r0,r0,#0x300000 @ enable single precision
+orr r0,r0,#0xC00000 @ also enable double precision
+@ldr r0,=(0xF << 20)
+mcr p15, 0, r0, c1, c0, 2 @at this point, the FPU is enabled to work with single and double precision
+mov r0,#0x40000000
+@fmxr fpexc,r0
+VMSR FPEXC,r0
+swi 0x7C @ OS_LeaveOS
+mov pc, lr
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Function called from the C-written interface to execute the code to debug.
+@
+CodeExecute:
+
+@
+@ It stores the debugger context including CPSR
+@
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=ourregisters
+stm r0, {r0-r14}  @ storing PC is useless
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+str sp,[r0,#52]
+mrs r1,CPSR
+str r1,[r0,#64]
+@
+@ Number of loops = 0
+@
+ldr r0,=Loop
+mov r1,#0
+str r1,[r0]
+@
+@ It looks if the next instruction has to be executed
+@
+Another_inst:
+bl CheckInst
+ands r0,r0,#0xFF00 @ Check State byte of ExecType
+bne End_CodeExec
+
+@
+@ Set Brkpt in the following instruction
+@
+bl setimmediatebreakpoints
+
+@
+@ jumptoprogram enables the handler routine for the breakpoint, switches to the context
+@ from the debugged program, executes the instruction, stores part of the context from
+@ the debugged program (except sp, lr and CPSR) and disables the brkpt handler routine
+@
+bl jumptoprogram
+
+@
+@ Back from Handler: store the remaining part of the context (sp, lr and CPSR)
+@
+ldr r0,=CurContext
+str sp,[r0,#52]
+str lr,[r0,#56]
+mrs r1,CPSR
+str r1,[r0,#64]
+
+@
+@ Remove Breakpoint from the following instruction
+@
+bl clearimmediatebreakpoints
+
+@
+@ Check if the execution goes on; if at the comeback the state byte at r0 is 0, it
+@ returns to the CLI
+@
+bl ReturnCLI
+cmp r0,#0
+bne Another_inst
+
+@
+@ Recover the context from the debugger, including the CPSR
+@
+End_CodeExec:
+ldr r0,=ourregisters
+ldr r1,[r0,#64]  @ CPSR
+msr CPSR, r1
+ldm r0, {r0-r14}  @ PC is not recovered
+
+mov pc,lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ jumptoprogram enables the handler routine for the breakpoint, switches to the context
+@ from the debugged program, executes the instruction, stores part of the context from
+@ the debugged program (except sp, lr and CPSR) and disables the brkpt handler routine
+@
+jumptoprogram:
+
+str lr, [sp,#-4]!
+bl EnableFPU
+ldr lr, [sp],#4
+
+ldr r0,=CurContext
+ldr r0,[r0,#60]
+ldr r0,[r0] @ prefetch the instruction
+
+ldr r0,=ReturnHandler
+str lr,[r0]
+
+mov r0,#0x01 @ claim + UNdefined instruction
+orr r0,r0,#0x100
+ldr r1,=UndefinedInstructhandler
+mov r2,#0
+swi 0x69 @ OS_ClaimProcessorVector
+@remember to release r1
+ldr r0,=HandUndRel
+str r1,[r0]
+
+mov r0,#0x03 @ claim + prefetch abort
+orr r0,r0,#0x100
+ldr r1,=PrefetchAborthandler
+mov r2,#0
+swi 0x69 @ OS_ClaimProcessorVector
+@remember to release r1
+ldr r0,=HandPreRel
+str r1,[r0]
+
+mov r0,#0x04 @ claim + Data abort
+orr r0,r0,#0x100
+ldr r1,=DataAborthandler
+mov r2,#0
+swi 0x69 @ OS_ClaimProcessorVector
+@remember to release r1
+ldr r0,=HandDatRel
+str r1,[r0]
+
+ldr r0,=CurContext
+add r1, r0, #68
+vldm r1, {s0-s31} @ load floating-point regs
+ldr r1, [r1, #128]
+vmsr FPSCR, r1 @ load FPSCR
+ldr r1,[r0,#64] @ CPSR
+msr CPSR_cxsf, r1
+ldm r0, {r0-r15}  @ jump to user program
+
+PrefetchAborthandler:
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+str sp,[r0,#52] @ write program sp in its place (FIXME: not program sp)
+sub r1,lr,#4
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2, #128] @ write FPSCR
+
+ldr r0,[r1]    @ read the instruction
+ldr r2,=0xE1200071 @ code for bkpt 1
+cmp r0,r2
+beq ReleaseHandler
+@ mark Prefetch Abort
+ldr r1,=ExecType
+mov r0, #0x1300
+str r0,[r1]
+
+b  ReleaseHandler
+
+UndefinedInstructhandler:
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+str sp,[r0,#52] @ write program sp in its place (FIXME: not program sp)
+sub r1,lr,#4
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2, #128] @ write FPSCR
+
+@ mark Undefined Instruction
+ldr r1,=ExecType
+mov r0, #0x1200
+str r0,[r1]
+
+b  ReleaseHandler
+
+DataAborthandler:
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+str sp,[r0,#52] @ write program sp in its place (FIXME: not program sp)
+sub r1,lr,#8
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2, #128] @ write FPSCR
+
+@ mark Data Abort
+ldr r1,=ExecType
+mov r0, #0x1100
+str r0,[r1]
+
+ReleaseHandler:
+
+ldr r0,=HandUndRel
+ldr r1,[r0]
+mov r0,#0x1 @ release + UNdefined instruction
+ldr r2,=UndefinedInstructhandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandPreRel
+ldr r1,[r0]
+mov r0,#0x3 @ release + prefetch abort
+ldr r2,=PrefetchAborthandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandDatRel
+ldr r1,[r0]
+mov r0,#0x4 @ release + prefetch abort
+ldr r2,=DataAborthandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=ReturnHandler
+ldr lr,[r0]
+movs pc,lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Set CurContext to Default values
+@
+DefCurCtx:
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r15}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+str sp,[r0,#52]
+str lr,[r0,#56]
+mrs r1,CPSR
+str r1,[r0,#64]   @ CPSR of the user program
+add r2, r0, #68
+vstm r2, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2, #128] @ write FPSCR
+mov pc,lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@   Function (CheckInst) that determines if the next instruction is to be executed. It
+@	is not executed if it is one of the following SWIs:
+@     - Code_OSExit
+@     - Code_OSWriteStr
+@     - Code_OSWriteChar
+@   Returns in r0 an ExecType that reports if the instruction will be executed or not.
+@
+CheckInst:
+ldr r0,=CurContext
+ldr r0,[r0,#60]
+ldr r0,[r0] @ Load the instruction
+
+ldr r1,=Code_OSExit
+cmp r0,r1
+bne Else_checkinstr1
+@ change ExecType
+ldr r1,=ExecType
+ldr r0,[r1]
+add r0, r0, #0x0100
+str r0,[r1] @ Change ExecType to Prg_End
+b Default_checkinstr
+
+Else_checkinstr1:
+ldr r1, =Code_OSWriteStr
+cmp r0,r1
+bne Else_checkinstr2
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x0300
+str r0, [r1]
+b Default_checkinstr
+
+Else_checkinstr2:
+ldr r1, =Code_OSWriteChar
+cmp r0,r1
+bne End_checkinstr
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x0200
+str r0, [r1]
+b Default_checkinstr
+
+Default_checkinstr:
+@ Do not execute the instruction
+@ Move forward PC
+ldr r0,=CurContext
+ldr r1,[r0,#60] @ PC
+add r1, r1, #4
+str r1,[r0,#60] @ PC = PC + 4
+
+End_checkinstr:
+ldr r1,=ExecType
+ldr r0, [r1]
+mov pc,lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@   Function (ReturnCLI) that determines whether to execute another instruction or go
+@	back to the CLI.
+@	It returns a 0 in r0 if the execution is NOT resumed
+@
+ReturnCLI:
+ldr r1,=ExecType
+ldr r0,[r1]
+cmp r0,#1
+beq modeGO
+cmp r0,#2
+beq modeTR
+cmp r0,#3
+beq modeGT
+cmp r0,#4
+beq modeGD
+b   No_execute
+
+modeGO:     @ In GO mode
+@
+@ Check if it is a Brkpt from the list; if so, set ExecType to 0 and jump to No_execute
+@
+ldr r0,=CurContext
+ldr r5,[r0,#60]      @ Load the PC of next instruction
+ldr r0,=CurNumBr
+ldr r6,[r0]          @ Load the number of BreakPoints
+ldr r0, =BrkPtList     @ Pointer to BreakPoints List
+loop_GO:
+   cmp r6,#0
+   beq End_BrkList
+   ldr r1,[r0]
+   cmp r5,r1
+   bne Next_Brk
+   ldr r1,=ExecType
+   ldr r0, [r1]
+   add r0, r0, #0x1000   @ Write the Stop_Br constant to warn of a reached breakpoint
+   str r0,[r1]
+   mov r0, #0
+   b End_RetCLI
+Next_Brk:
+   sub r6, r6, #1
+   add r0, r0, #4
+   b   loop_GO
+End_BrkList:
+@
+@ increase the loop counter and check if the limit is reached; if so, jump to No_execute
+@ without altering ExecType
+@
+ldr r0, =Loop
+ldr r1,[r0]
+add r1, r1, #1
+str r1,[r0]
+ldr r0, =Num_Loop
+cmp r0,r1
+beq No_execute
+
+b Execute
+
+modeTR:     @ In TR mode
+@
+@ Never execute the following instruction, it always returns to the CLI
+@
+mov r0,#0
+@str r0,[r1]
+b End_RetCLI
+
+modeGT:  @ In GT mode
+@
+@ stops if the address matches a temporary Brkpt or the max number of loops is reached
+@
+
+ldr r0,=CurContext
+ldr r5,[r0,#60]      @ Load the PC of next instruction
+
+ldr r0, =GTBrkP     @ Pointer to BreakPoint
+ldr r1,[r0]
+
+cmp r5,r1
+bne No_BrkT
+ldr r1,=ExecType
+ldr r0, [r1]
+add r0, r0, #0x1000   @ Write the Stop_Br constant to warn the breakpoint has been reached
+str r0,[r1]
+mov r0, #0
+b End_RetCLI
+
+No_BrkT:
+@
+@ increase the loop counter and check if the limit is reached; if so, jump to No_execute
+@ without altering ExecType
+@
+ldr r0, =Loop
+ldr r1,[r0]
+add r1, r1, #1
+str r1,[r0]
+ldr r0, =Num_Loop
+cmp r0,r1
+beq No_execute
+b Execute
+
+modeGD:    @ In GD mode
+@
+@ it only stops if the max number of loops is reached;
+@ increase the loop counter and check if the limit is reached; if so, jump to No_execute
+@ without altering ExecType
+@
+ldr r0, =Loop
+ldr r1,[r0]
+add r1, r1, #1
+str r1,[r0]
+ldr r0, =Num_Loop
+cmp r0,r1
+bne Execute
+
+No_execute:
+mov r0,#0
+b End_RetCLI
+Execute:
+mov r0,#0xFF
+End_RetCLI:
+mov pc,lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ set a breakpoint in the loaded program after its pc and on potential branches
+@
+setimmediatebreakpoints:
+@FIXME for branches
+stmdb sp!, {r5,r6,r7,lr}
+ldr r5,=immediatebreakpoints
+ldr r6,=0xE1200071 @ code for bkpt 1
+mov r7,#1 @bkpt count
+
+ldr r1,=CurContext
+ldr r1,[r1,#60] @ the pc
+ldr r3,[r1] @ the instruction
+
+@test for branches (b, bl)
+and r2,r3,#0x0E000000
+cmp r2,#0x0A000000
+bne setimmediatebreakpoints_branchend
+bic r2,r3,#0xFF000000 @imm24
+tst r2,#0x00800000
+orrne r2,r2,#0xFF000000 @ sign extend
+add r2,r1,r2, LSL #2
+add r2,r2,#8 @ target address
+b setimmediatebreakpoints_alternateset
+setimmediatebreakpoints_branchend:
+
+@test for (mov pc, rx)
+mov r2,#0x0FF00000 @ a move with shifted register (mask)
+orr r2,r2,#0x0000F000 @ with target pc (mask)
+and r2,r3,r2
+mov r0,#0x01A00000 @ a shifted register
+orr r0,r0,#0x0000F000 @ target pc
+cmp r2,r0
+bne setimmediatebreakpoints_alternateend
+tst r3,#0x00000FF0 @ mask for a simple register
+bne setimmediatebreakpoints_alternateend
+and r2,r3,#0x0000000F @ the source register
+ldr r0,=CurContext
+ldr r2,[r0,r2,LSL #2]
+
+setimmediatebreakpoints_alternateset:
+ldr r0,[r2] @ instruction to be saved
+str r2,[r5],#4 @ save address
+str r0,[r5],#4 @ save content
+str r6,[r2] @ set the bkpt
+add r7,r7,#1
+setimmediatebreakpoints_alternateend:
+add r1,r1,#4
+ldr r2,[r1] @ instruction to be saved
+str r1,[r5],#4 @ save address at bkpt
+str r2,[r5],#4 @ save content at bkpt
+ldr r5,=immediatebreakpointnumber
+str r7,[r5]
+str r6,[r1]
+
+mov r0,#0 @ flags, 0 for all memory
+swi 0x6E @ OS_SynchronizeCodeAreas
+
+ldmia sp!, {r5,r6,r7,pc}
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Remove the breakpoints
+@
+clearimmediatebreakpoints:
+ldr r3,=immediatebreakpoints
+ldr r0,[r3,#-4] @ number of breakpoints
+clearimmediatebreakpoints_loop:
+ldr r1,[r3],#4 @ address
+ldr r2,[r3],#4 @ content
+str r2,[r1]
+subs r0,r0,#1
+bgt clearimmediatebreakpoints_loop
+mov r0,#0 @ all memory
+swi 0x6E @ OS_SynchronizeCodeAreas
+mov pc,lr
+
+.end
