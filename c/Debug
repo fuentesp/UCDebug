@@ -421,12 +421,15 @@ void handleMenuSelection(wimp_selection *selection) {
 		/* Submenu option */
 		entry = strtok(NULL, "\r.");
 		if (entry != NULL) {
+			/* Toggle between displays if the window is open */
 			if (strcmp(entry, "Single") == 0 && FPdispDoublePrec) {
 				FPdispDoublePrec = FALSE;
-				ToggleWinDisplay(FPRegsWin);
+				if(WindowStates[FPRegsWinOffset] != wss_CLOSED)
+					ToggleWinDisplay(FPRegsWin);
 			} else if (strcmp(entry, "Double") == 0 && !FPdispDoublePrec) {
 				FPdispDoublePrec = TRUE;
-				ToggleWinDisplay(FPRegsWin);
+				if(WindowStates[FPRegsWinOffset] != wss_CLOSED)
+					ToggleWinDisplay(FPRegsWin);
 			}
 		}
 		if (WindowStates[FPRegsWinOffset] == wss_CLOSED)

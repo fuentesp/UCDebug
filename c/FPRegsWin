@@ -167,7 +167,7 @@ void ToggleWinDisplay(wimp_w FPRegsWin) {
 					CharSizeY, FPRegsIcons[i].T_FPval);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_FPval, wimp_COLOUR_LIGHT_GREY);
 		}
-	} else { /* Change from double to simple precision�*/
+	} else { /* Change from double to simple precision */
 		for (i = 0; i < 16; i += 1) {
 			wimp_delete_icon(FPRegsWin, FPRegsIcons[i].I_Name);
 			wimp_delete_icon(FPRegsWin, FPRegsIcons[2 * i].I_Val);
