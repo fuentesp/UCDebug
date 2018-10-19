@@ -81,8 +81,6 @@ static osbool main_message_quit(wimp_message *message);
 int main(int argc, char *argv[]) {
 	int i;
 
-	EnableFPU();
-
 	main_initialize();
 	wimp_message_list *mlist;
 	mlist = malloc(sizeof(int) * 2);

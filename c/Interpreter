@@ -543,13 +543,13 @@ void runCode() {
 	DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
 	CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
 	RegsWinRedraw(RegsWin);
-//	if (FPRegsFlag) FPRegsWinRedraw(FPRegsWin);
 	if (WindowStates[FPRegsWinOffset] != wss_CLOSED) FPRegsWinRedraw(FPRegsWin);
 }
 
 void HandleSWI() {
 	char aux_msg[ConsLinSize];
 	char* ptr;
+	int i;
 	switch (ExecType & SWI_Ex_Mask) {
 		case Prg_End: /* End program */
 			ConsWrite(ConsWin, PRG_END_MSG);
@@ -569,16 +569,29 @@ void HandleSWI() {
 			ptr = (char *) CurContext.Regs[0];
 			UsrWrite(UsrWin, ptr);
 			break;
-			/*		case SWI_InC: // ReadChar
-			 strncpy(aux_msg, "Pending to implement ReadChar", sizeof(aux_msg));
-			 ConsEscribe(ConsWin, aux_msg);
-			 break;
-			 */
 		default:
 			snprintf(aux_msg, sizeof(aux_msg),
 					"ERROR! non-contemplated SWI at the interpreter: 0x%08X",
 					ExecType & SWI_Ex_Mask);
 			ConsWrite(ConsWin, aux_msg);
+			break;
+	}
+	/* Check if next instruction will be executed (breakpoint, running mode...)
+	 * and set the ExecType accordingly. */
+	switch (ExecType & CmdByteMask) {
+		case Run_Go:
+			for (i = 0; i < CurNumBr; i++)
+				if (CurContext.Regs[15] == BrkPtList[i]) {
+					ExecType = Stop_Ex; /* Stop the execution */
+					break;
+				}
+			break;
+		case Run_Tr:
+			ExecType = Stop_Ex; /* Stop the execution */
+			break;
+		case Run_Gt:
+			if (CurContext.Regs[15] == GTBrkP)
+				ExecType = Stop_Ex; /* Stop the execution */
 			break;
 	}
 	ExecType = ExecType & CmdByteMask; /* Set state to normal exec */
