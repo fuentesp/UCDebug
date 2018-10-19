@@ -569,6 +569,12 @@ void HandleSWI() {
 			ptr = (char *) CurContext.Regs[0];
 			UsrWrite(UsrWin, ptr);
 			break;
+		case SWI_EnOS: /* EnterOS */
+			/* Do nothing, and return control */
+			break;
+		case SWI_LeOS: /* LeaveOS */
+			/* Do nothing, and return control */
+			break;
 		default:
 			snprintf(aux_msg, sizeof(aux_msg),
 					"ERROR! non-contemplated SWI at the interpreter: 0x%08X",
