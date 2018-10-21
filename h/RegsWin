@@ -33,7 +33,7 @@ struct RegType {
 };
 
 /* Public Vars*/
-extern struct RegType RegsIcons[19];
+extern struct RegType RegsIcons[20];
 
 /* Public Functions */
 wimp_w RegsWinCreate(int PosX, int PosY);

@@ -415,6 +415,7 @@ void loadFile(char *filename) {
 					fread(&AddrCodeStart, 1, 4, file);
 					CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
 					CurContext.Regs[13] = 0x00019000; /* Stack pointer provisional */
+					CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
 					fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 					fread(&AddrDataStart, 1, 4, file);
 					fclose(file);
