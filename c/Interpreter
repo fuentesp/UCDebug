@@ -389,7 +389,6 @@ void loadFile(char *filename) {
 		fread(auxBuf, 1, 4, file);
 		if (*(int *) &auxBuf != ELF_FILE_BEG) {
 			strncpy(aux_msg, NOT_ELF_MSG, sizeof(aux_msg));
-			ConsWrite(ConsWin, aux_msg);
 		} else {
 			/*Check if link addresses are correct */
 			fseek(file, OffElfHeadSize, SEEK_SET);
@@ -399,7 +398,6 @@ void loadFile(char *filename) {
 			fread(auxBuf, 1, 4, file);
 			if (*(int *) &auxBuf != AddrElfFile) {
 				sprintf(aux_msg, "%s 0x%08X", MIS_LINKED_MSG, AddrElfFile);
-				ConsWrite(ConsWin, aux_msg);
 			} else {
 				/* Check if ELF file fits in debugging area */
 				fseek(file, 0, SEEK_END);
@@ -418,10 +416,6 @@ void loadFile(char *filename) {
 					CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
 					fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 					fread(&AddrDataStart, 1, 4, file);
-					fclose(file);
-					resetCodeView();
-					resetMemView();
-					RegsWinRedraw(RegsWin);
 					strncpy(aux_msg, "\"", sizeof(aux_msg));
 					strncat(aux_msg, filename, sizeof(aux_msg) - 1);
 					strncat(aux_msg, "\" loaded successfully",
@@ -435,6 +429,11 @@ void loadFile(char *filename) {
 		strncat(aux_msg, "\" not found", sizeof(aux_msg) - sizeof(filename) - 13);
 		ConsWrite(ConsWin, aux_msg);
 	}
+	fclose(file); /* Close file handler */
+	ConsWrite(ConsWin, aux_msg); /* Write notification message of the outcome */
+	resetCodeView();
+	resetMemView();
+	RegsWinRedraw(RegsWin);
 }
 
 /* resetMemView resets the Memory view window to start at the initial address */
