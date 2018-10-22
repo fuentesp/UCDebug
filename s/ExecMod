@@ -430,7 +430,7 @@ stm r0,{r0-r12}
 ldr r1,[sp]
 str r1,[r0] @ write program r0 in its place
 add sp,sp,#4
-sub r1,lr,#4
+sub r1,lr,#8
 str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
 add r2, r0, #68
 vstm r2!, {s0-s31} @ write floating-point regs
@@ -714,10 +714,13 @@ ldr r1, =Code_OSEnterOS
 cmp r4,r1
 bne Else_checkinstr4
 ldr r0,=CurContext
-ldr r1,[r0,#64]		@CPSR
+ldr r1,[r0,#64]		@ CPSR
+str r1,[r0,#208]        @ Store previous CPSR in svc SPSR
 bic r1,r1,#0x1F
 orr r1,r1,#0x13
-str r1,[r0,#64]		@Update CPSR with the SVC user mode
+str r1,[r0,#64]		@ Update CPSR with the SVC user mode
+ldr r1,[r0,#60]
+str r1,[r0,#204]        @ Store previous PC in LR
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x0400	@ Update ExecType
