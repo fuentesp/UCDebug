@@ -416,6 +416,9 @@ void loadFile(char *filename) {
 					CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
 					fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 					fread(&AddrDataStart, 1, 4, file);
+					/* If data section starts out of range, set a default @ */
+					if (!validMemAddressRange(AddrDataStart))
+						AddrDataStart = AddrCodeStart;
 					strncpy(aux_msg, "\"", sizeof(aux_msg));
 					strncat(aux_msg, filename, sizeof(aux_msg) - 1);
 					strncat(aux_msg, "\" loaded successfully",
