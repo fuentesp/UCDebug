@@ -31,12 +31,13 @@
 .extern   GTBrkP
 .extern   ExecType
 
-.equ SWI_Mask,    0xFF000000
-.equ Code_OSExit, 0xEF000011
-.equ Code_OSWriteStr, 0xEF000002
-.equ Code_OSWriteChar, 0xEF000000
-.equ Code_OSEnterOS, 0xEF000016
-.equ Code_OSLeaveOS, 0xEF00007C
+.equ SWI_Mask,    0x0F000000
+.equ Cond_Mask,   0xF0000000
+.equ Code_OSExit, 0x0F000011
+.equ Code_OSWriteStr, 0x0F000002
+.equ Code_OSWriteChar, 0x0F000000
+.equ Code_OSEnterOS, 0x0F000016
+.equ Code_OSLeaveOS, 0x0F00007C
 .equ Num_Loop,    1000
 
 
@@ -57,22 +58,14 @@ immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
 .text
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@ Function to activate the FPU
+@ Function to activate the FPU (must be executed in privileged mode)
 EnableFPU:
-@enable the FPU
-@swi 0x16 @ OS_EnterOS (go to supervisor mode)
-@mrc p15, 0, r0, c1, c1, 2
-@orr r0, r0, #0xC00 @fpu in non-secure
-@mcr p15, 0, r0, c1, c1, 2
 mrc p15, 0, r0, c1, c0, 2 @enable FPU
 orr r0,r0,#0x300000 @ enable single precision
 orr r0,r0,#0xC00000 @ also enable double precision
-@ldr r0,=(0xF << 20)
 mcr p15, 0, r0, c1, c0, 2 @at this point, the FPU is enabled to work with single and double precision
 mov r0,#0x40000000
-@fmxr fpexc,r0
 VMSR FPEXC,r0
-@swi 0x7C @ OS_LeaveOS
 mov pc, lr
 
 
@@ -154,10 +147,6 @@ bl setimmediatebreakpoints
 @ the debugged program (except sp, lr and CPSR) and disables the brkpt handler routine
 @
 bl jumptoprogram
-@swi 0x16@OS_EnterOS
-@msr cpsr_c,#0x1F
-@ldr r0,=ourregisters
-@ldr sp,[r0,#52]
 
 @
 @ Remove Breakpoint from the following instruction
@@ -176,7 +165,6 @@ bne Another_inst
 @ Recover the context from the debugger, including the CPSR
 @
 End_CodeExec:
-@swi 0x16 @ OS_EnterOS (enter SVC mode)
 ldr r0,=ourregisters
 mrs r1, CPSR
 ldr sp, [r0, #200] @ load debugger SVC sp
@@ -225,18 +213,16 @@ mov pc,lr
 @
 jumptoprogram:
 
-str lr, [sp,#-4]!
-bl EnableFPU
-ldr lr, [sp],#4
-
-ldr r0,=CurContext
-ldr r0,[r0,#60]
-ldr r0,[r0] @ prefetch the instruction
-
 ldr r0,=ReturnHandler
 str lr,[r0]
 ldr r0,=StackHandler
 str sp,[r0]
+
+bl EnableFPU
+
+ldr r0,=CurContext
+ldr r0,[r0,#60]
+ldr r0,[r0] @ prefetch the instruction
 
 mov r0,#0x01 @ claim + UNdefined instruction
 orr r0,r0,#0x100
@@ -265,12 +251,6 @@ swi 0x69 @ OS_ClaimProcessorVector
 ldr r0,=HandDatRel
 str r1,[r0]
 
-
-@
-@ Enter privileged mode
-@
-@swi 0x16 @ OS_EnterOS
-
 @
 @ Load context from all modes
 @ TODO: define sp for all modes, to prevent errors
@@ -280,26 +260,26 @@ add r1, r0, #68
 vldm r1, {s0-s31} @ load floating-point regs
 ldr r1, [r1, #128]
 vmsr FPSCR, r1 @ load FPSCR
-@ldr sp, [r0, #200] @ load svc sp
+ldr sp, [r0, #200] @ load svc sp
 ldr lr, [r0, #204] @ load svc lr
 ldr r2, [r0, #208]
 msr spsr, r2 @ load svc SPSR
 mrs r1, cpsr
 orr r1, r1, #0x4
 msr cpsr, r1 @ switch from SVC to Abt mode
-@ldr sp, [r0, #212] @ load abt sp
+ldr sp, [r0, #212] @ load abt sp
 ldr lr, [r0, #216] @ load abt lr
 ldr r2, [r0, #220]
 msr spsr, r2 @ load abt SPSR
 bic r1, r1, #0x1
 msr cpsr, r1 @ switch from Abt to IRQ mode
-@ldr sp, [r0, #236] @ load IRQ sp
+ldr sp, [r0, #236] @ load IRQ sp
 ldr lr, [r0, #240] @ load IRQ lr
 ldr r2, [r0, #244]
 msr spsr, r2 @ load IRQ SPSR
 orr r1, r1, #0x9
 msr cpsr, r1 @ switch from IRQ to Und mode
-@ldr sp, [r0, #224] @ load Und sp
+ldr sp, [r0, #224] @ load Und sp
 ldr lr, [r0, #228] @ load Und lr
 ldr r2, [r0, #232]
 msr spsr, r2 @ load Und SPSR
@@ -319,8 +299,7 @@ msr CPSR, r1 @ load usr CPSR
 ldr r1, [r0, #60]
 str r1, [sp, #-4]!
 ldm r0, {r0-r12}
-ldr pc, [sp], #4
-@ldm r0, {r0-r15}  @ jump to user program
+ldr pc, [sp], #4   @ jump to user program
 
 PrefetchAborthandler:
 @@ Save context from all modes, starting from Abort mode
@@ -523,10 +502,6 @@ ldr lr,[r0]
 ldr r0,=StackHandler
 ldr sp,[r0]
 
-@ldr r0,=ourregisters
-@ldr r0,[r0,#68]
-@msr spsr,r0
-@movs pc,lr
 mov pc, lr	@ Return in sys mode
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -593,6 +568,81 @@ mov pc,lr
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @
+@   Function (CheckInstCond) that determines if the next instruction execution condition
+@	is accomplished, depending on the flags of the CPSR. Return 0 for FALSE and
+@	1 for TRUE.
+CheckInstCond:
+stmdb sp!, {r4-r5, lr}
+and r2, r1, #0x80000000	@ N flag
+and r3, r1, #0x40000000	@ Z flag
+and r4, r1, #0x20000000	@ C flag
+and r5, r1, #0x10000000	@ V flag
+
+ands r1, r0, #0xE       @ If the 3 highest bits of the cond are 0, it depends
+bne condC		@ on the Z flag
+condZ:			@ Inst. will run if cond=0 & Z=1, or cond=1 & Z=0
+lsr r3, r3, #30
+eor r0, r0, r3
+b res
+condC:
+ands r1, r0, #0xC	@ If the 3 highest bits of 'cond' are 001, it depends
+bne condN		@ on the C flag
+and r1, r0, #1          @ Inst. will run if cond=2 & C=1, or cond=3 & C=0
+lsr r4, r4, #29
+eor r0, r1, r4
+b res
+condN:
+and r1, r0, #0xE	@ If the 3 highest bits of 'cond' are 010, it depends
+cmp r1, #0x4	@ on the N flag
+bne condV
+and r1, r0, #1		@ Inst. will run if cond=4 & N=1, or cond=5 & N=0
+lsr r2, r2, #31
+eor r0, r1, r2
+b res
+condV:
+ands r1, r0, #8		@ If the 3 highest bits of 'cond' are 011, it depends
+bne condCZ		@ on the V flag
+and r1, r0, #1		@ Inst. will run if cond=6 & V=1, or cond=7 & V=0
+lsr r5, r5, #28
+eor r0, r1, r5
+b res
+condCZ:
+ands r1, r0, #6		@ If the 3 highest bits of 'cond' are 100, it depends
+bne condNV		@ on the C and Z flags
+lsrs r4, r4, #29	@ Inst. will run if C=1 & Z=0, or cond=9 & C=0
+lsr r3, r3, #30
+eorne r0, r4, r3
+and r1, r0, #1
+eoreq r0, r4, r1
+b res
+condNV:
+ands r1, r0, #4		@ If the 3 highest bits of 'cond' are 101, it depends
+bne condNVZ		@ on the N and V flags
+lsr r2, r2, #31		@ Inst. will run if (bit 0 of cond XOR (N XOR V))=0
+lsr r5, r5, #28
+eor r2, r2, r5
+and r1, r0, #1
+eor r1, r1, r2
+eor r0, r1, #1
+b res
+condNVZ:
+@ Inst. will run based on eq. (not(Z)not(b0 XOR (N XOR V)) + b0Z, where b0 is the lowest significant bit of 'cond'
+lsr r2, r2, #31
+lsr r3, r3, #30
+lsr r5, r5, #28
+and r1, r0, #1
+eor r2, r2, r5
+eor r2, r1, r2
+orr r2, r3, r2
+eor r2, r2, #1
+and r1, r1, r3
+orr r0, r2, r1
+
+res:
+ldmia sp!, {r4-r5, pc}
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
 @   Function (CheckInst) that determines if the next instruction is to be executed. It
 @	is not executed if it is one of the following SWIs:
 @     - Code_OSExit
@@ -603,12 +653,33 @@ mov pc,lr
 @   Returns in r0 an ExecType that reports if the instruction will be executed or not.
 @
 CheckInst:
-ldr r0,=CurContext
-ldr r0,[r0,#60]
-ldr r0,[r0] @ Load the instruction
+stmdb sp!, {r4, lr}
 
+ldr r2,=CurContext
+ldr r0,[r2,#60]
+ldr r4,[r0] @ Load the instruction
+
+@ First check if it is a SWI; otherwise, jump to end
+and r1, r4, #SWI_Mask
+cmp r1, #SWI_Mask
+bne End_checkinstr
+
+@ Then check if the exec is inconditional or not
+and r1, r4, #Cond_Mask
+cmp r1, #0xE0000000
+beq checkinstr1	@ Inconditional execution, check if it is one of the captured SWIs
+
+@ Conditional execution, verify if it will execute
+lsr r0, r1, #28         @ Load condition field
+ldr r1, [r2,#64]	@ Load CPSR
+bl CheckInstCond
+cmp r0, #0
+beq End_checkinstr	@ It the instruction will not be executed, skip checkings
+
+checkinstr1:
+bic r4, r4, #Cond_Mask
 ldr r1,=Code_OSExit
-cmp r0,r1
+cmp r4,r1
 bne Else_checkinstr1
 @ change ExecType
 ldr r1,=ExecType
@@ -619,7 +690,7 @@ b Default_checkinstr
 
 Else_checkinstr1:
 ldr r1, =Code_OSWriteStr
-cmp r0,r1
+cmp r4,r1
 bne Else_checkinstr2
 @ change ExecType
 ldr r1, =ExecType
@@ -630,7 +701,7 @@ b Default_checkinstr
 
 Else_checkinstr2:
 ldr r1, =Code_OSWriteChar
-cmp r0,r1
+cmp r4,r1
 bne Else_checkinstr3
 ldr r1, =ExecType
 ldr r0, [r1]
@@ -640,18 +711,13 @@ b Default_checkinstr
 
 Else_checkinstr3:
 ldr r1, =Code_OSEnterOS
-cmp r0,r1
+cmp r4,r1
 bne Else_checkinstr4
-
-@@Patch to find errors (to remove for final version)
-@swi 0x16
-@@@swi 0x7c @ leave to user
-@msr cpsr_c, #0x1f
 ldr r0,=CurContext
-ldr r1,[r0,#64] @CPSR
+ldr r1,[r0,#64]		@CPSR
 bic r1,r1,#0x1F
 orr r1,r1,#0x13
-str r1,[r0,#64]
+str r1,[r0,#64]		@Update CPSR with the SVC user mode
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x0400	@ Update ExecType
@@ -660,17 +726,12 @@ b Default_checkinstr
 
 Else_checkinstr4:
 ldr r1, =Code_OSLeaveOS
-cmp r0,r1
+cmp r4,r1
 bne End_checkinstr
-
-@@Patch to find errors (to remove for final version)
-@swi 0x16
-@@@swi 0x7c @ leave to user
-@msr cpsr_c, #0x1f
 ldr r0,=CurContext
-ldr r1,[r0,#64] @CPSR
+ldr r1,[r0,#64] 	@CPSR
 bic r1,r1,#0xF
-str r1,[r0,#64]
+str r1,[r0,#64]		@Update CPSR with User mode
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x0500	@ Update ExecType
@@ -688,7 +749,7 @@ str r1,[r0,#60] @ PC = PC + 4
 End_checkinstr:
 ldr r1,=ExecType
 ldr r0, [r1]
-mov pc,lr
+ldmia sp!, {r4, pc}
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @
@@ -754,14 +815,12 @@ modeTR:     @ In TR mode
 @ Never execute the following instruction, it always returns to the CLI
 @
 mov r0,#0
-@str r0,[r1]
 b End_RetCLI
 
 modeGT:  @ In GT mode
 @
 @ stops if the address matches a temporary Brkpt or the max number of loops is reached
 @
-
 ldr r0,=CurContext
 ldr r5,[r0,#60]      @ Load the PC of next instruction
 
