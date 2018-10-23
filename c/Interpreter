@@ -42,6 +42,7 @@
 #define CLR_BRKPT_CMD "clr"
 #define STOP_CMD "stop"
 #define SET_CMD "set"
+#define REG_CMD "reg"
 #define MEM_CMD "mem"
 #define CODE_CMD "code"
 #define HELP_CMD "help"
@@ -49,7 +50,7 @@
 #define ABOUT_CMD "about"
 
 #define ELF_FILE_BEG 0x464C457F
-#define ASSIGN_DELIMITER '='
+#define ASSIGN_DELIMITER "="
 
 /* Message strings */
 #define UNKNOWN_CMD_MSG		"Unrecognised command"
@@ -64,6 +65,8 @@
 #define UNALIGN_WORD_MSG	"Address 0x%08X is not aligned to store word 0x%08X"
 #define UNALIGN_HALF_MSG	"Address 0x%08X is not aligned to store half 0x%04X"
 #define INVALID_MEM_SIZE	"Size %d is not a valid size: 8(byte) / 16(half) / 32(word)"
+#define MIS_REG_MSG			"Missing register parameter"
+#define INVALID_REG_MSG		"Invalid register (must be r0-r15, sp, lr, pc, cpsr, s0-31, d0-d15, or fpscr)"
 #define BREAKPOINT_MSG		"Reached user breakpoint at addr 0x%08X"
 #define GT_BRKPT_MSG		"Reached temp breakpoint at addr 0x%08X"
 #define CLRD_BRK_MSG		"Cleared all breakpoints"
@@ -71,6 +74,10 @@
 #define PR_AB_MSG			"Prefetch Abort at addr 0x%08X"
 #define IL_INS_MSG			"Illegal Instruction at addr 0x%08X"
 #define PRG_END_MSG			"Program execution has finished"
+#define CODE_ADDR_MSG			"WARNING: Address below data section (0x%08X)"
+
+/* Auxiliar strings */
+#define alphabet	"abcdefghijklmnopqrstuvwxyz+-*/.¡!¿?$%&()[]"
 
 /* Local functions */
 void runCode();
@@ -149,6 +156,19 @@ void interpreter(char *linea) {
 		runCode();
 	} else if (strcmp(args[0], TRACE_CMD) == 0) {
 		/* Trace mode: only execute one instruction */
+		if (nargs > 1) { /* Start executing the code from a given address; if no address
+				is given, start executing from the current address */
+			addr = getAddr(args[1]);
+			if (!validMemAddressRange(addr)) {
+				ConsWrite(ConsWin, INV_ADDR_MSG);
+				return;
+			} else if (!alignedAddr(addr)) {
+				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
+				return;
+			} else {
+				CurContext.Regs[15] = addr;
+			}
+		}
 		ExecType = Run_Tr;
 		runCode();
 	} else if (strcmp(args[0], RUN_TO_CMD) == 0) {
@@ -206,23 +226,45 @@ void interpreter(char *linea) {
 				setMemView(addr);
 		}
 	} else if (strcmp(args[0], SET_CMD) == 0) {
+		/* Change a value in memory */
 		size = 32;
 		for (i = 1; i < nargs; i++) {
-			if (strchr(args[i], ASSIGN_DELIMITER) == NULL) {
+			if (strchr(args[i], ASSIGN_DELIMITER[0]) == NULL) {
 				size = getVal(args[i]);
 				continue;
 			} else {
-				addr = getAddr(strtok(args[i], (char *) ASSIGN_DELIMITER));
+				addr = getAddr(strtok(args[i], ASSIGN_DELIMITER));
 				if (!validMemAddressRange(addr)) {
 					ConsWrite(ConsWin, INV_ADDR_MSG);
 					continue;
 				}
-				val = getVal(strchr(args[i], ASSIGN_DELIMITER) + 1);
+				val = getVal(strtok(NULL, ASSIGN_DELIMITER));
 				setMem(addr, val, size);
+				if (addr < AddrDataStart) {
+					snprintf(aux_msg, ConsLinSize, CODE_ADDR_MSG, AddrDataStart);
+					ConsWrite(ConsWin, aux_msg);
+				}
 			}
 		}
 		setMemView(AddrDataCur);
 		setCodeView(AddrCodeCur);
+	} else if (strcmp(args[0], REG_CMD) == 0) {
+		/* Change the value in a register */
+		if (nargs == 1) {
+			ConsWrite(ConsWin, MIS_REG_MSG);
+			return;
+		} else {
+			for (i = 1; i < nargs; i++) {
+				if (strchr(args[i], ASSIGN_DELIMITER[0]) == NULL) {
+					ConsWrite(ConsWin, MIS_REG_MSG);
+					return;
+				} else if (setReg(strtok(args[i], ASSIGN_DELIMITER),
+					strtok(NULL, ASSIGN_DELIMITER)) < 0)
+						ConsWrite(ConsWin, INVALID_REG_MSG);
+			}
+			RegsWinRedraw(RegsWin);
+			if (WindowStates[FPRegsWinOffset] != wss_CLOSED) FPRegsWinRedraw(FPRegsWin);
+		}
 	} else if (strcmp(args[0], CODE_CMD) == 0) {
 		if (nargs == 1) { /* Reset code view */
 			resetCodeView();
@@ -260,6 +302,10 @@ void help() {
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, TRACE_CMD, sizeof(help_msg));
 	strncat(help_msg, "                     execute a single instruction",
+			sizeof(help_msg) - sizeof(TRACE_CMD));
+	ConsWrite(ConsWin, help_msg);
+	strncpy(help_msg, TRACE_CMD, sizeof(help_msg));
+	strncat(help_msg, "  <addr>             execute the single instruction in <addr>",
 			sizeof(help_msg) - sizeof(TRACE_CMD));
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, RUN_CMD, sizeof(help_msg));
@@ -313,6 +359,10 @@ void help() {
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, "                       (default=32bits) at <addr> with <val>",
 			sizeof(help_msg));
+	ConsWrite(ConsWin, help_msg);
+	strncpy(help_msg, REG_CMD, sizeof(help_msg));
+	strncat(help_msg, " <reg>=<val>        replace the value of the register",
+			sizeof(help_msg) - sizeof(MEM_CMD));
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, MEM_CMD, sizeof(help_msg));
 	strncat(help_msg, "                    reset the memory view window",
@@ -478,6 +528,97 @@ int getAddr(char *str) {
 		addr = strtol(str, NULL, 0);
 	}
 	return addr;
+}
+
+/* setReg extracts a register name from a string (typically input by the user) and transforms it
+ * into an offset within the CurContext variable that hosts the values of the registers. It only
+ * allows to access registers from current user mode or FP unit. The function returns the
+ * offset and size of the register by reference. If the register name is invalid, the function
+ * returns -1. */
+int setReg(char *str, char *str2) {
+	int reg = -1, fpreg = -1, size = 32, val, op = -1;
+	double fpval;
+
+	/* Get register index */
+	if((strncmp(str, "r", 1) == 0 || strncmp(str, "R", 1) == 0) &&
+		strpbrk(str+1, alphabet) == NULL) {
+			reg = strtol(str+1, NULL, 10);
+	} else if (strcmp(str, "sp") == 0 || strcmp(str, "SP") == 0) {
+		reg = 13;
+	} else if (strcmp(str, "lr") == 0 ||  strcmp(str, "LR") == 0) {
+		reg = 14;
+	} else if (strcmp(str, "pc") == 0 || strcmp(str, "PC") == 0) {
+		reg =15;
+	} else if (strcmp(str, "cpsr") == 0 || strcmp(str, "CPSR") == 0) {
+		reg =16;
+	} else if ((strncmp(str, "s", 1) == 0 || strncmp(str, "S", 1) == 0) &&
+		strpbrk(str+1, alphabet) == NULL) {
+			fpreg = strtol(str+1, NULL, 10);
+	} else if ((strncmp(str, "d", 1) == 0 || strncmp(str, "D", 1) == 0) &&
+		strpbrk(str+1, alphabet) == NULL) {
+			fpreg = 2*strtol(str+1, NULL, 10);
+			size = 64;
+	} else if (strcmp(str, "fpscr") == 0 || strcmp(str, "FPSCR") == 0) {
+		fpreg = 32;
+	}
+
+	/* Get value to assign and store it in CurContext */
+	if (reg >= 0 && reg <= 16) {
+		op = 1; /* Assignation can be completed */
+		val = strtoul(str2, NULL, 0);
+		switch (CurContext.CPSR & 0x01F) {
+			case 0x10:	/* User mode */
+			case 0x1F:	/* System mode */
+				if (reg < 15) CurContext.Regs[reg] = val;
+				else CurContext.CPSR = val;
+				break;
+			case 0x13:	/* SVC mode */
+				if (reg < 13) CurContext.Regs[reg] = val;
+				else if (reg == 16) CurContext.CPSR = val;
+				else CurContext.SvcRegs[reg-13] = val;
+				break;
+			case 0x17:	/* Abort mode */
+				if (reg < 13) CurContext.Regs[reg] = val;
+				else if (reg == 16) CurContext.CPSR = val;
+				else CurContext.AbtRegs[reg-13] = val;
+				break;
+			case 0x1B:	/* Und mode */
+				if (reg < 13) CurContext.Regs[reg] = val;
+				else if (reg == 16) CurContext.CPSR = val;
+				else CurContext.UndRegs[reg-13] = val;
+				break;
+			case 0x12:	/* IRQ mode */
+				if (reg < 13) CurContext.Regs[reg] = val;
+				else if (reg == 16) CurContext.CPSR = val;
+				else CurContext.IrqRegs[reg-13] = val;
+				break;
+			case 0x11:	/* FIQ mode */
+				if (reg < 8) CurContext.Regs[reg] = val;
+				else if (reg == 16) CurContext.CPSR = val;
+				else CurContext.FiqRegs[reg-8] = val;
+				break;
+		}
+	} else if (fpreg >= 0 && fpreg <=31) {
+		op = 2;
+		if (size = 32) {
+			if (strchr(str2, '.') == NULL) {
+				val = strtoul(str2, NULL, 0);
+				CurContext.FPRegs[fpreg] = (float) val;
+			} else {
+				fpval = strtod(str2, NULL);
+				CurContext.FPRegs[fpreg] = (float) val;
+			}
+		} else {
+			fpval = strtod(str2, NULL);
+			*((double *) &(CurContext.FPRegs[fpreg])) = val;
+		}
+	} else if (fpreg == 32) {
+		op = 2;
+		val = strtoul(str2, NULL, 0);
+		CurContext.FPSCR = val;
+	}
+
+	return op;
 }
 
 /* getVal converts a string into a long integer */
