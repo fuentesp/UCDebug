@@ -133,7 +133,7 @@ void RegsWinRedraw(wimp_w RegsWin) {
 		case 0x011:
 			strcat(RegsIcons[18].T_Val, "fiq");
 			for (i = 0; i < 7; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.SvcRegs[i]);
+				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.FiqRegs[i]);
 				strncpy(RegsIcons[i+8].T_Val, Aux, PrintedWordSize);
 			}
 			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.FiqRegs[2]);

@@ -453,7 +453,7 @@ void loadFile(char *filename) {
 				fseek(file, 0, SEEK_END);
 				flength = ftell(file);
 				fseek(file, 0, SEEK_SET);
-				if (flength > ((int) &CurContext - AddrElfFile)) {
+				if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
 					sprintf(aux_msg, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
 							DebugAreaSize);
 				} else {
@@ -462,7 +462,10 @@ void loadFile(char *filename) {
 					fseek(file, OffEntryPoint, SEEK_SET);
 					fread(&AddrCodeStart, 1, 4, file);
 					CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
-					CurContext.Regs[13] = 0x00019000; /* Stack pointer provisional */
+					/* Set stack pointer at the end of the ELF file loaded; ensure it is
+					 * aligned to a word */
+					DefStackCtx();
+					CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
 					CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
 					fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 					fread(&AddrDataStart, 1, 4, file);
@@ -476,13 +479,12 @@ void loadFile(char *filename) {
 				}
 			}
 		}
+		fclose(file); /* Close file handler */
 	} else {
 		strncpy(aux_msg, "ERROR: file \"", sizeof(aux_msg));
 		strncat(aux_msg, filename, sizeof(aux_msg) - 13);
 		strncat(aux_msg, "\" not found", sizeof(aux_msg) - sizeof(filename) - 13);
-		ConsWrite(ConsWin, aux_msg);
 	}
-	fclose(file); /* Close file handler */
 	ConsWrite(ConsWin, aux_msg); /* Write notification message of the outcome */
 	resetCodeView();
 	resetMemView();
@@ -596,6 +598,10 @@ int setReg(char *str, char *str2) {
 				if (reg < 8) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.FiqRegs[reg-8] = val;
+				break;
+			default:	/* UKN mode: treat it as user mode */
+				if (reg < 15) CurContext.Regs[reg] = val;
+				else CurContext.CPSR = val;
 				break;
 		}
 	} else if (fpreg >= 0 && fpreg <=31) {

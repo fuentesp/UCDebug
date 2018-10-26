@@ -93,9 +93,6 @@ int main(int argc, char *argv[]) {
 		DEBUG_AREA[i] = (char) (rand() % 0x100);
 	}
 
-	/* Initialize the registers with their current value */
-	DefCurCtx();
-
 	/* Initialize the debugging vars */
 	DebugAreaStart = (int) &DEBUG_AREA;
 	DebugAreaEnd = DebugAreaStart + DebugAreaSize;
@@ -108,6 +105,9 @@ int main(int argc, char *argv[]) {
 	AddrDataStart = AddrElfFile + (OffStartData - OffElfFile);
 	AddrDataCur = AddrDataStart;
 
+	/* Initialize the registers with their current value */
+	DefCurCtx();
+
 	/* Open the basic windows from the debugger */
 	CodeWin = CodeWinCreate(AddrCodeCur, NumLinCode, PosXCodeWin, PosYCodeWin);
 	DataWin = DataWinCreate(AddrDataCur, 25, 0, PosXDataWin, PosYDataWin);
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
 	ConsWin = ConsWinCreate(PosXConsWin, PosYConsWin);
 
 	/* Print current available area - must be deleted for final version */
-	/*	char aux_msg[ConsLinSize];
+/*	char aux_msg[ConsLinSize];
 	 snprintf(aux_msg, sizeof(aux_msg), "AREA START: 0x%08X  AREA END: 0x%08X",
 	 &DEBUG_AREA, &CurContext);
 	 ConsWrite(ConsWin, aux_msg);*/
