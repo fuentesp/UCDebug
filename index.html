@@ -47,11 +47,21 @@
 <p>!UCDebug has been co-developed by <a href="http://personales.unican.es/camareroc/">Cristóbal Camarero</a>, Fernando Vallejo and <a href="http://personales.unican.es/fuentesp/">Pablo Fuentes</a>, as part of a project led by Carmen Martínez. Other current and former members of the group who have also collaborated include Jesús Gutiérrez, Elena Suárez and Adrián Barredo.</p>
 
 <h2>
-<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.3)</h2>
+<a id="changeset" class="anchor" href="#changeset" aria-hidden="true"><span class="octicon octicon-link"></span></a>Changeset</h2>
+<ul>
+	<li>Set a dedicated stack for each mode, all located in the Debug area. (v1.5)</li>
+	<li>Allowed to change register values when an Unknown mode is accessed. (v1.5)</li>
+	<li>OS does not crash when trying to load non-existent files. (v1.5)</li>
+	<li>Inhibited interrupts during the execution of the user code. This prevents crashes in previous versions. (v1.5)</li>
+</ul>
+
+<h2>
+<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.5)</h2>
 
 <ul>
-	<li>Execution of code in privileged modes not supported (system may freeze).</li>
-	<li>Loading files without code sections may reset the memory view window to address 0x00000000.</li>
+	<li>Execution of code in Abort mode is not stable (LR in this mode becomes polluted).</li>
+	<li>Inhibited the use of interrrupts during the execution of the user code, and the CPSR shown has always the interrupt flags set.</li>
+	<li>Execution of certain instructions is not properly controlled (e.g., when PC is updated by an LDM instruction).</li>
 </ul>
 <!-- <p>Currently there are not any known bugs.</p>
 -->
