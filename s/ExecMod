@@ -52,6 +52,7 @@ Loop:          .space  4
 HandPreRel:    .space  4
 HandDatRel:    .space  4
 HandUndRel:    .space  4
+HandIRQRel:    .space  4
 ReturnHandler: .space  4
 StackHandler:  .space  4
 
@@ -229,17 +230,17 @@ ldr r0,[r0] @ prefetch the instruction
 
 ldr r0,=CurContext
 ldr r1,[r0,#52]
-ldr r1,[r1,#-4] @ prefetch the user mode stack
+ldrb r1,[r1,#-4] @ prefetch the user mode stack
 ldr r1,[r0,#200]
-ldr r1,[r1,#-4] @ prefetch the SVC stack
+ldrb r1,[r1,#-4] @ prefetch the SVC stack
 ldr r1,[r0,#212]
-ldr r1,[r1,#-4] @ prefetch the Abt stack
+ldrb r1,[r1,#-4] @ prefetch the Abt stack
 ldr r1,[r0,#224]
-ldr r1,[r1,#-4] @ prefetch the Und stack
+ldrb r1,[r1,#-4] @ prefetch the Und stack
 ldr r1,[r0,#236]
-ldr r1,[r1,#-4] @ prefetch the IRQ stack
+ldrb r1,[r1,#-4] @ prefetch the IRQ stack
 ldr r1,[r0,#268]
-ldr r1,[r1,#-4] @ prefetch the FIQ stack
+ldrb r1,[r1,#-4] @ prefetch the FIQ stack
 
 mov r0,#0x01 @ claim + UNdefined instruction
 orr r0,r0,#0x100
@@ -272,6 +273,14 @@ swi 0x69 @ OS_ClaimProcessorVector
 @remember to release r1
 ldr r0,=HandDatRel
 str r1,[r0]
+
+mov r0, #0x06 	@ claim + IRQ
+orr r0, r0, #0x100
+ldr r1, =IRQhandler
+mov r2, #0
+swi 0x69 @ OS_ClaimProcessorVector
+ldr r0, =HandIRQRel	@ remember to release r1
+str r1, [r0]
 
 @
 @ Load context from all modes
@@ -320,7 +329,6 @@ add r1, r0, #4
 ldm r1, {r1-r14} @ load regs from usr mode (to update sp and lr, in case
                  @ the user program was left in a different user mode)
 ldr r1,[r0,#64]
-orr r1, r1, #0x180	@ Disable interrupts and imprecise aborts TODO:Fix this!
 msr CPSR, r1 @ load usr CPSR
 ldr r1,=jumpregisters
 stm r1,{r0-r14} @missing r0,r1,pc
@@ -350,9 +358,9 @@ str r3, [r2] @ write FPSCR
 str sp, [r0, #212] @ write abort sp
 @str lr, [r0, #216] @ write abort lr
 mrs r3, spsr
-orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts TODO:Fix this!
 str r3, [r0, #220] @ write abort SPSR
 str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
+orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts
 orr r3, r3, #0x1F
 msr cpsr, r3 @ switch to system mode to access remaining user regs
 str sp, [r0, #52] @ write program sp in its place
@@ -418,7 +426,6 @@ str r3, [r2] @ write FPSCR
 str sp, [r0, #224] @ write undefined sp
 str lr, [r0, #228] @ write undefined lr
 mrs r3, spsr
-orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts TODO:Fix this!
 str r3, [r0, #232] @ write undefined SPSR in its place
 str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
 bic r3, r3, #0x9
@@ -477,7 +484,6 @@ str r3, [r2] @ write FPSCR
 str sp, [r0, #212] @ write abort sp
 str lr, [r0, #216] @ write abort lr
 mrs r3, spsr
-orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts TODO:Fix this!
 str r3, [r0, #220] @ write abort SPSR
 str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
 orr r3, r3, #0x1F
@@ -516,11 +522,100 @@ ldr r1,=ExecType
 mov r0, #0x1100
 str r0,[r1]
 
+b ReleaseHandler
+
+IRQhandler:
+mrs r0, spsr
+orr r0, r0, #0xF	@ the IRQ routine will exit in system mode
+bic r0, r0, #0x180	@ and with the IRQs enabled
+msr spsr, r0
+
+ldr r0, =ourregisters
+mrs r1, CPSR
+orr r1, r1, #0x1
+msr CPSR, r1		@switch from IRQ to SVC
+ldr sp, [r0, #200]	@ load debugger SVC sp
+ldr lr, [r0, #204] 	@ load debugger SVC lr
+ldr r2, [r0, #208]
+msr spsr, r2       	@ load debugger SVC spsr
+bic r1, r1, #0x1
+msr cpsr, r1 		@ switch from SVC to IRQ mode
+ldr sp, [r0, #236] 	@ load IRQ sp
+@ldr lr, [r0, #240] 	@ load IRQ lr
+@ldr r2, [r0, #244]
+@msr spsr, r2       	@ load IRQ SPSR
+orr r1, r1, #0x5
+msr cpsr, r1 		@ switch from IRQ to Abt mode
+ldr sp, [r0, #212] 	@ load abort sp
+ldr lr, [r0, #216] 	@ load abort lr
+ldr r2, [r0, #220]
+msr spsr, r2       	@ load abort SPSR
+bic r1, r1, #0x6
+msr cpsr, r1 		@ switch from Abt to FIQ mode
+add r2, r0, #248
+ldm r2, {r8-r14}   	@ load FIQ specific regs
+ldr r2, [r0, #276]
+msr spsr, r2       	@ load FIQ SPSR
+orr r1, r1, #0xA
+msr cpsr, r1 		@ switch from FIQ to Und mode
+ldr sp, [r0, #224] 	@ load undefined sp
+ldr lr, [r0, #228] 	@ load undefined lr
+ldr r2, [r0, #232]
+msr spsr, r2       	@ load undefined SPSR
+orr r1, r1, #0x1F
+msr cpsr, r1 		@ switch to Sys mode
+ldm r0, {r0-r14}  	@ recover general purpose regs (previous usr mode is unknown)
+ldr sp,=StackHandler 	@recover sp from system mode
+ldr sp,[sp]
+@bic r1,r1,#0xD
+@msr cpsr,r1 @ switch to IRQ
+
+ldr r0,=HandIRQRel
+ldr r1,[r0]
+mov r0,#0x6 @ release + IRQ
+ldr r2,=IRQhandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandUndRel
+ldr r1,[r0]
+mov r0,#0x1 @ release + UNdefined instruction
+ldr r2,=UndefinedInstructhandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandPreRel
+ldr r1,[r0]
+mov r0,#0x3 @ release + prefetch abort
+ldr r2,=PrefetchAborthandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandDatRel
+ldr r1,[r0]
+mov r0,#0x4 @ release + data abort
+ldr r2,=DataAborthandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+@switch again to IRQ mode
+mrs r0,cpsr
+bic r0,r0,#0xF
+orr r0,r0,#0x2
+@orr r0,r0,#0x180 @unnecessary, the swis do not change these.
+msr cpsr,r0
+
+ldr lr,=ReturnHandler @stop application execution
+ldr lr,[lr]
+add lr,lr,#4 @IRQ exceptions add 4 to the next execution to be executed
+
+ldr r0,=HandIRQRel
+ldr r0,[r0]
+bx r0 @jump to RISCOS IRQ
+
+
 ReleaseHandler:
 
 ldr r0,=ourregisters
 mrs r1, CPSR
 bic r1, r1, #0xC
+orr r1, r1, #0x180 @ disable IRQ
 msr CPSR, r1       @ switch from Sys to SVC
 ldr sp, [r0, #200] @ load debugger SVC sp
 ldr lr, [r0, #204] @ load debugger SVC lr
@@ -555,6 +650,12 @@ msr cpsr, r1 @ switch to Sys mode
 ldm r0, {r0-r14}  @ recover general purpose regs (previous usr mode is unknown)
 
 
+ldr r0,=HandDatRel
+ldr r1,[r0]
+mov r0,#0x4 @ release + data abort
+ldr r2,=DataAborthandler
+swi 0x69 @ OS_ClaimProcessorVector
+
 ldr r0,=HandUndRel
 ldr r1,[r0]
 mov r0,#0x1 @ release + UNdefined instruction
@@ -567,10 +668,10 @@ mov r0,#0x3 @ release + prefetch abort
 ldr r2,=PrefetchAborthandler
 swi 0x69 @ OS_ClaimProcessorVector
 
-ldr r0,=HandDatRel
+ldr r0,=HandIRQRel
 ldr r1,[r0]
-mov r0,#0x4 @ release + data abort
-ldr r2,=DataAborthandler
+mov r0,#0x6 @ release + IRQ
+ldr r2,=IRQhandler
 swi 0x69 @ OS_ClaimProcessorVector
 
 ldr r0,=ReturnHandler

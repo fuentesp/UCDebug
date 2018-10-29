@@ -281,10 +281,10 @@ void UsrScroll() {
  * until the character 0x0A is read. Non-printable characters (below 0x20) are
  * represented with a dot. */
 void UsrWrite(wimp_w UsrWin, char *text) {
-	int i;
+	int i, len = strlen(text);
 	char c;
 
-	for (i = 0; i < strlen(text); i++) {
+	for (i = 0; i < len; i++) {
 		c = text[i];
 		if ((c == (char) 0x0A) || (UsrCursor == NumColUsrCon)) {
 			UsrCons.T_Lines[NumLinUsrCon - 1][UsrCursor] = (char) 0x00;
