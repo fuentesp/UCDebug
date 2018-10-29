@@ -49,18 +49,20 @@
 <h2>
 <a id="changeset" class="anchor" href="#changeset" aria-hidden="true"><span class="octicon octicon-link"></span></a>Changeset</h2>
 <ul>
+	<li>Added IRQ handling routine to address the use of interrupts within user code (currently in development). (v1.5.1)</li>
+	<li>Debugger does not throw segmentation fault if a SWI 0x2 in the user code receives an invalid address in R0. (v1.5.1)</li>
+	<li>Added Makefile to compile faster. 'compile' file now switches to debugger folder and runs a 'make' command. (v1.5.1)</li>
+	<li>Debugger does not crash if the stack from the user code is not aligned to a word. (v1.5.1)</li>
 	<li>Set a dedicated stack for each mode, all located in the Debug area. (v1.5)</li>
 	<li>Allowed to change register values when an Unknown mode is accessed. (v1.5)</li>
 	<li>OS does not crash when trying to load non-existent files. (v1.5)</li>
-	<li>Inhibited interrupts during the execution of the user code. This prevents crashes in previous versions. (v1.5)</li>
 </ul>
 
 <h2>
-<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.5)</h2>
+<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.5.1)</h2>
 
 <ul>
 	<li>Execution of code in Abort mode is not stable (LR in this mode becomes polluted).</li>
-	<li>Inhibited the use of interrrupts during the execution of the user code, and the CPSR shown has always the interrupt flags set.</li>
 	<li>Execution of certain instructions is not properly controlled (e.g., when PC is updated by an LDM instruction).</li>
 </ul>
 <!-- <p>Currently there are not any known bugs.</p>
