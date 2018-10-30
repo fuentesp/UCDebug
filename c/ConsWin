@@ -74,7 +74,7 @@ wimp_w ConsWinCreate(int PosX, int PosY) {
 	P_Buffer = 0;
 
 	ConsWin = open_window(ConsWinName, ConsWinSizeX, ConsLinTot * LinSizeY, PosX, PosY,
-	ConsWinSizeX, ConsWinSizeY, 0, (ConsLinTot - ConsLinVis) * LinSizeY, 0x0E);
+	ConsWinSizeX, ConsWinSizeY, 0, (ConsLinTot - ConsLinVis) * LinSizeY, 0x16);
 
 	for (i = 0; i < ConsLinTot - 1; i++) {
 		strncpy(Console.T_Lines[i], "", ConsLinSize);
@@ -143,7 +143,7 @@ void ConsEnterKey(wimp_w ConsWin) {
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94, -3200, 34, 0);
 
 	/* Redraw window */
-	UpdateWindow(ConsWin);
+	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1);
 }
 
 /* Activate the command window to be ready to receive characters */
@@ -212,7 +212,7 @@ void ConsEscapeKey(wimp_w ConsWin) {
 	int lineSize = strlen(Console.T_LinInp);
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94 + 18 * lineSize, -3200, 34,
 		lineSize);
-	UpdateWindow(ConsWin); // Redraw the window
+	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1); // Redraw the window
 }
 
 /* Gains the input focus to the Console window (useful to be called from outside to get focus) */

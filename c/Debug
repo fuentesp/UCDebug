@@ -241,7 +241,7 @@ void mainPoll(void) {
 					for (i = 0; i < NumWindows; i++) {
 						if (WindowStates[i] == wss_CONS_WIN_ATTACHED) {
 							WindowStates[i] = wss_ON_SCREEN;
-							ResetWindow(*(WinHandles[i]), -1, -1, -1, -1, (wimp_w) - 1);
+							ResetWindow(*(WinHandles[i]), -1, -1, -1, -1, -1, -1, (wimp_w) - 1);
 						}
 					}
 				}
@@ -331,7 +331,7 @@ void mainPoll(void) {
 					for (i = 0; i < NumWindows; i++) {
 						if (WindowStates[i] != wss_CLOSED) {
 							WindowStates[i] = wss_ON_SCREEN;
-							ResetWindow(*(WinHandles[i]), -1, -1, -1, -1, (wimp_w) - 1);
+							ResetWindow(*(WinHandles[i]), -1, -1, -1, -1, -1, -1, (wimp_w) - 1);
 							ActivateCons(ConsWin);
 						}
 					}
@@ -399,19 +399,19 @@ void handleMenuSelection(wimp_selection *selection) {
 	entry = strtok(aux, "\r.");
 	if (strcmp(entry, "Reset view") == 0) {
 		ResetWindow(CodeWin, CodeWinSizeX, CodeWinSizeY, PosXCodeWin, PosYCodeWin,
-				(wimp_w) - 1);
+				0, 0, (wimp_w) - 1);
 		ResetWindow(DataWin, DataWinSizeX, DataWinSizeY, PosXDataWin, PosYDataWin,
-				(wimp_w) - 1);
+				0, 0, (wimp_w) - 1);
 		ResetWindow(RegsWin, RegsWinSizeX, RegsWinSizeY, PosXRegsWin, PosYRegsWin,
-				(wimp_w) - 1);
+				0, 0, (wimp_w) - 1);
 		ResetWindow(ConsWin, ConsWinSizeX, ConsWinSizeY, PosXConsWin, PosYConsWin,
-				(wimp_w) - 1);
+				0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1);
 		if (WindowStates[FPRegsWinOffset] != wss_CLOSED)
 			ResetWindow(FPRegsWin, FPRegsWinSizeX, FPRegsWinSizeY, PosXFPRegsWin,
-					PosYFPRegsWin, (wimp_w) - 1);
+					PosYFPRegsWin, 0, 0, (wimp_w) - 1);
 		if (WindowStates[UsrWinOffset] != wss_CLOSED)
 			ResetWindow(UsrWin, UsrConsWinSizeX, UsrConsWinSizeY, PosXUsrWin, PosYUsrWin,
-					(wimp_w) - 1);
+					0, (NumLinUsrCon - 10) * LinSizeY, (wimp_w) - 1);
 		for (i = 0; i < NumWindows; i++) { /* Restore the status of any non-closed windows */
 			if (WindowStates[i] != wss_CLOSED) WindowStates[i] = wss_ON_SCREEN;
 		}
