@@ -23,27 +23,5 @@
 | along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 dir <obey$dir>
-
-| Options to compile with VFP instructions
-echo -- Compiling ibar.c
-gcc -mfpu=vfp -c -IOSLib: -o ib.o ibar.c
-echo -- Compiling CodeWin.c
-gcc -mfpu=vfp -c -IOSLib: -o CWin.o CodeWin.c
-echo -- Compiling DataWin.c
-gcc -mfpu=vfp -c -IOSLib: -o DWin.o DataWin.c
-echo -- Compiling RegsWin.c
-gcc -mfpu=vfp -c -IOSLib: -o RWin.o RegsWin.c
-echo -- Compiling FPRegsWin.c
-gcc -mfpu=vfp -c -IOSLib: -o FPWin.o FPRegsWin.c
-echo -- Compiling ConsWin.c
-gcc -mfpu=vfp -c -IOSLib: -o CoWin.o ConsWin.c
-echo -- Compiling Interpreter.c
-gcc -mfpu=vfp -c -IOSLib: -o In.o Interpreter.c
-echo -- Compiling Debug.c
-gcc -mfpu=vfp -c -IOSLib: -o Dbg.o Debug.c
-echo -- Assembling execution module
-as -mfpu=vfpv2 -o Exec.o ExecMod.s
-
-echo ------- Linking !UCDebug
-gcc -Wl,--no-warn-mismatch -mfpu=vfp -LOSLib: -lOSLib32 -o !UCDebug/!RunImage Dbg.o ib.o CoWin.o CWin.o DWin.o RWin.o FPWin.o In.o Exec.o
+make
 
