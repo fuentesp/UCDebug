@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "Interpreter.h"
 #include "ConsWin.h" /* To have access to the definition of UsrWinCreate function */
 #include "main.h" /* To use general vars */
@@ -56,6 +57,8 @@
 #define UNKNOWN_CMD_MSG		"Unrecognised command"
 #define MISSING_ARGS_MSG	"Missing arguments! "
 #define LOAD_ARGS_MSG		"(Usage: ld <file_name>)"
+#define NOT_FILE_MSG		"ERROR: path \"%s\" is not a regular file"
+#define SUCC_LOAD_MSG		"\"%s\" loaded successfully"
 #define NOT_ELF_MSG			"File is not an ELF executable"
 #define MIS_LINKED_MSG		"File is not properly linked to address"
 #define FILE_TOO_BIG_MSG	"File exceeds maximum size allowed"
@@ -436,62 +439,70 @@ void printAuthors() {
 
 /* loadFile loads a given file in the reserved debugging area in memory */
 void loadFile(char *filename) {
-	FILE *file = fopen(filename, "rb");
-	long flength;
-	char aux_msg[ConsLinSize];
+	struct stat path_stat;
+	stat(filename, &path_stat);
 
-	if (file) {
-		/* Check if file is an ELF */
-		int elfSize = 0, prHeadSize = 0;
-		char auxBuf[4];
-		fread(auxBuf, 1, 4, file);
-		if (*(int *) &auxBuf != ELF_FILE_BEG) {
-			strncpy(aux_msg, NOT_ELF_MSG, sizeof(aux_msg));
-		} else {
-			/*Check if link addresses are correct */
-			fseek(file, OffElfHeadSize, SEEK_SET);
-			fread(&elfSize, 1, 2, file);
-			fread(&prHeadSize, 1, 2, file);
-			fseek(file, elfSize + OffVirtAddr, SEEK_SET);
+	long flength;
+	char aux_msg[ConsLinSize], aux_msg2[ConsLinSize];
+
+	if (S_ISREG(path_stat.st_mode)) {
+		FILE *file = fopen(filename, "rb");
+		if (file) {
+			/* Check if file is an ELF */
+			int elfSize = 0, prHeadSize = 0;
+			char auxBuf[4];
 			fread(auxBuf, 1, 4, file);
-			if (*(int *) &auxBuf != AddrElfFile) {
-				sprintf(aux_msg, "%s 0x%08X", MIS_LINKED_MSG, AddrElfFile);
+			if (*(int *) &auxBuf != ELF_FILE_BEG) {
+				strncpy(aux_msg, NOT_ELF_MSG, sizeof(aux_msg));
 			} else {
-				/* Check if ELF file fits in debugging area */
-				fseek(file, 0, SEEK_END);
-				flength = ftell(file);
-				fseek(file, 0, SEEK_SET);
-				if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
-					sprintf(aux_msg, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
-							DebugAreaSize);
+				/*Check if link addresses are correct */
+				fseek(file, OffElfHeadSize, SEEK_SET);
+				fread(&elfSize, 1, 2, file);
+				fread(&prHeadSize, 1, 2, file);
+				fseek(file, elfSize + OffVirtAddr, SEEK_SET);
+				fread(auxBuf, 1, 4, file);
+				if (*(int *) &auxBuf != AddrElfFile) {
+					sprintf(aux_msg, "%s 0x%08X", MIS_LINKED_MSG, AddrElfFile);
 				} else {
-					/* Load ELF file and update data and code windows */
-					fread((char *) (AddrElfFile), 1, flength, file);
-					fseek(file, OffEntryPoint, SEEK_SET);
-					fread(&AddrCodeStart, 1, 4, file);
-					CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
-					/* Set stack pointer at the end of the ELF file loaded; ensure it is
-					 * aligned to a word */
-					DefStackCtx();
-					CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
-					CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
-					fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
-					fread(&AddrDataStart, 1, 4, file);
-					/* If data section starts out of range, set a default @ */
-					if (!validMemAddressRange(AddrDataStart))
-						AddrDataStart = AddrCodeStart;
-					strncpy(aux_msg, "\"", sizeof(aux_msg));
-					strncat(aux_msg, filename, sizeof(aux_msg) - 1);
-					strncat(aux_msg, "\" loaded successfully",
-							sizeof(aux_msg) - sizeof(filename) - 1);
+					/* Check if ELF file fits in debugging area */
+					fseek(file, 0, SEEK_END);
+					flength = ftell(file);
+					fseek(file, 0, SEEK_SET);
+					if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
+						sprintf(aux_msg, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
+								DebugAreaSize);
+					} else {
+						/* Load ELF file and update data and code windows */
+						fread((char *) (AddrElfFile), 1, flength, file);
+						fseek(file, OffEntryPoint, SEEK_SET);
+						fread(&AddrCodeStart, 1, 4, file);
+						CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
+						/* Set stack pointer at the end of the ELF file loaded; ensure it is
+						 * aligned to a word */
+						DefStackCtx();
+						CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
+						CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
+						fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
+						fread(&AddrDataStart, 1, 4, file);
+						/* If data section starts out of range, set a default @ */
+						if (!validMemAddressRange(AddrDataStart))
+							AddrDataStart = AddrCodeStart;
+						flength = sizeof(aux_msg)-strlen(SUCC_LOAD_MSG)+1;
+						strncpy(aux_msg2, filename, flength);
+						aux_msg2[flength] = 0;
+						snprintf(aux_msg, sizeof(aux_msg), SUCC_LOAD_MSG, aux_msg2);
+					}
 				}
 			}
+			fclose(file); /* Close file handler */
 		}
-		fclose(file); /* Close file handler */
 	} else {
-		strncpy(aux_msg, "ERROR: file \"", sizeof(aux_msg));
-		strncat(aux_msg, filename, sizeof(aux_msg) - 13);
-		strncat(aux_msg, "\" not found", sizeof(aux_msg) - sizeof(filename) - 13);
+		/* Max length of the path shown: add 2 to account for the '%s' characters in the
+		 * msg that are replaced with the string, substract 1 for the null char */
+		flength = sizeof(aux_msg)-strlen(NOT_FILE_MSG)+1;
+		strncpy(aux_msg2, filename, flength);
+		aux_msg2[flength] = 0;
+		snprintf(aux_msg, sizeof(aux_msg), NOT_FILE_MSG, aux_msg2);
 	}
 	ConsWrite(ConsWin, aux_msg); /* Write notification message of the outcome */
 	resetCodeView();

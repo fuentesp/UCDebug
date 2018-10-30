@@ -26,31 +26,33 @@
 
 all: !UCDebug/!RunImage
 
+FLAGS=-O2
+
 HEADERS=CodeWin.h ConsWin.h DataWin.h FPRegsWin.h ibar.h Interpreter.h main.h RegsWin.h
 
 ib.o: ibar.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o ib.o ibar.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o ib.o ibar.c
 
 CWin.o: CodeWin.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o CWin.o CodeWin.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o CWin.o CodeWin.c
 
 DWin.o: DataWin.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o DWin.o DataWin.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o DWin.o DataWin.c
 
 RWin.o: RegsWin.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o RWin.o RegsWin.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o RWin.o RegsWin.c
 
 FPWin.o: FPRegsWin.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o FPWin.o FPRegsWin.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o FPWin.o FPRegsWin.c
 
 CoWin.o: ConsWin.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o CoWin.o ConsWin.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o CoWin.o ConsWin.c
 
 In.o: Interpreter.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o In.o Interpreter.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o In.o Interpreter.c
 
 Dbg.o: Debug.c $(HEADERS)
-	gcc -mfpu=vfp -c -IOSLib: -o Dbg.o Debug.c
+	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o Dbg.o Debug.c
 
 Exec.o: ExecMod.s
 	as -mfpu=vfpv2 -o Exec.o ExecMod.s
