@@ -384,9 +384,9 @@ wimp_w OpenInfoDialog() {
 	/* Get the state of the dialog window to ensure it works correctly.
 	 * Otherwise, Debugger crashes when the 'Info' entry in the icon menu is
 	 * clicked. */ // UPDATE: now it apparently does not need it anymore?
-/*	wimp_window_state state;
+	wimp_window_state state;
 	state.w = W;
-	wimp_get_window_state(&state); */
+	wimp_get_window_state(&state);
 
 	return W;
 }
