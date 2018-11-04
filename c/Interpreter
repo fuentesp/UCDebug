@@ -590,36 +590,36 @@ int setReg(char *str, char *str2) {
 		switch (CurContext.CPSR & 0x01F) {
 			case 0x10:	/* User mode */
 			case 0x1F:	/* System mode */
-				if (reg < 15) CurContext.Regs[reg] = val;
+				if (reg < 16) CurContext.Regs[reg] = val;
 				else CurContext.CPSR = val;
 				break;
 			case 0x13:	/* SVC mode */
-				if (reg < 13) CurContext.Regs[reg] = val;
+				if (reg < 13 || reg == 15) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.SvcRegs[reg-13] = val;
 				break;
 			case 0x17:	/* Abort mode */
-				if (reg < 13) CurContext.Regs[reg] = val;
+				if (reg < 13 || reg == 15) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.AbtRegs[reg-13] = val;
 				break;
 			case 0x1B:	/* Und mode */
-				if (reg < 13) CurContext.Regs[reg] = val;
+				if (reg < 13 || reg == 15) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.UndRegs[reg-13] = val;
 				break;
 			case 0x12:	/* IRQ mode */
-				if (reg < 13) CurContext.Regs[reg] = val;
+				if (reg < 13 || reg == 15) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.IrqRegs[reg-13] = val;
 				break;
 			case 0x11:	/* FIQ mode */
-				if (reg < 8) CurContext.Regs[reg] = val;
+				if (reg < 8 || reg == 15) CurContext.Regs[reg] = val;
 				else if (reg == 16) CurContext.CPSR = val;
 				else CurContext.FiqRegs[reg-8] = val;
 				break;
 			default:	/* UKN mode: treat it as user mode */
-				if (reg < 15) CurContext.Regs[reg] = val;
+				if (reg < 16) CurContext.Regs[reg] = val;
 				else CurContext.CPSR = val;
 				break;
 		}
@@ -688,6 +688,8 @@ void setMem(int addr, int val, int size) {
 void runCode() {
 	char aux_msg[ConsLinSize];
 
+	UpdateLastShownCtx();
+
 	SetPrompt(PromptRUN);
 	while ((ExecType) != Stop_Ex) {
 		mainPoll();
@@ -744,12 +746,12 @@ void HandleSWI() {
 				UsrWrite(UsrWin, ptr);
 			}
 			break;
-		case SWI_EnOS: /* EnterOS */
-			/* Do nothing, and return control */
-			break;
-		case SWI_LeOS: /* LeaveOS */
-			/* Do nothing, and return control */
-			break;
+//		case SWI_EnOS: /* EnterOS */
+//			/* Do nothing, and return control */
+//			break;
+//		case SWI_LeOS: /* LeaveOS */
+//			/* Do nothing, and return control */
+//			break;
 		default:
 			snprintf(aux_msg, sizeof(aux_msg),
 					"ERROR! non-contemplated SWI at the interpreter: 0x%08X",
@@ -799,6 +801,10 @@ void HandleException() {
 			break;
 		case Ex_PAb: /* Prefetch Abort */
 			snprintf(aux_msg, sizeof(aux_msg), PR_AB_MSG, CurContext.Regs[15]);
+			ConsWrite(ConsWin, aux_msg);
+			break;
+		case Ex_OoR: /* Out-of-Range instruction */
+			snprintf(aux_msg, sizeof(aux_msg), INV_ADDR_MSG, CurContext.Regs[15]);
 			ConsWrite(ConsWin, aux_msg);
 			break;
 		default:

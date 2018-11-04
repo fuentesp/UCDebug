@@ -38,4 +38,4 @@ extern struct RegType RegsIcons[20];
 /* Public Functions */
 wimp_w RegsWinCreate(int PosX, int PosY);
 void RegsWinRedraw(wimp_w CodeWin);
-
+void UpdateLastShownCtx();

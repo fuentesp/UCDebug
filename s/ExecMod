@@ -33,6 +33,7 @@
 .extern   GTBrkP
 .extern   ExecType
 .extern	  GetResultFromInst
+.extern	  validMemAddressRange
 
 .equ SWI_Mask,    0x0F000000
 .equ Cond_Mask,   0xF0000000
@@ -869,6 +870,17 @@ stmdb sp!, {r4, lr}
 
 ldr r2,=CurContext
 ldr r0,[r2,#60]
+
+bl validMemAddressRange	@ before analysing the instruction, check if the address
+cmp r0, #0		@ is within the valid range
+bne load_instruction	@ valid address, load the instruction
+ldr r1,=ExecType
+mov r0, #0x1400 	@ mark an Out-of-Range exception, so the instruction is not run
+str r0,[r1]
+b End_checkinstr
+
+load_instruction:
+ldr r0,[r2,#60]
 ldr r4,[r0] @ Load the instruction
 
 @ First check if it is a SWI; otherwise, jump to end
@@ -949,7 +961,7 @@ ldr r1,[r0,#60]
 str r1,[r0,#204]        @ Store previous PC in LR
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x0400	@ Update ExecType
+add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 
@@ -963,7 +975,7 @@ bic r1,r1,#0xF
 str r1,[r0,#64]		@Update CPSR with User mode
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x0500	@ Update ExecType
+add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 

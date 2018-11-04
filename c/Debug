@@ -41,6 +41,7 @@
 /* Global variables  */
 char DEBUG_AREA[DebugAreaSize];
 struct ContextType CurContext;
+int LastShownContext[18];
 int BrkPtList[MaxBrPoints];
 int CurNumBr = 0;
 int GTBrkP;
@@ -107,6 +108,7 @@ int main(int argc, char *argv[]) {
 
 	/* Initialize the registers with their current value */
 	DefCurCtx();
+	UpdateLastShownCtx();
 
 	/* Open the basic windows from the debugger */
 	CodeWin = CodeWinCreate(AddrCodeCur, NumLinCode, PosXCodeWin, PosYCodeWin);
@@ -284,11 +286,11 @@ void mainPoll(void) {
 				 * 	addresses; with right button, scroll backwards; with wheel button,
 				 * 	toggle breakpoint. */
 				if ((block.pointer.buttons == wimp_CLICK_SELECT)
-						&& validMemAddressRange(AddrCodeCur + NumLinCode * 4))
-					AddrCodeCur = AddrCodeCur + NumLinCode * 4;
+						&& validMemAddressRange(AddrCodeCur + (VisRows - 2) * 4))
+					AddrCodeCur = AddrCodeCur + (VisRows - 2) * 4;
 				if ((block.pointer.buttons == wimp_CLICK_ADJUST)
-						&& validMemAddressRange(AddrCodeCur - NumLinCode * 4))
-					AddrCodeCur = AddrCodeCur - NumLinCode * 4;
+						&& validMemAddressRange(AddrCodeCur - (VisRows - 2) * 4))
+					AddrCodeCur = AddrCodeCur - (VisRows - 2) * 4;
 				if (block.pointer.buttons == wimp_CLICK_MENU) {
 					for (i = 0; i < NumLinCode; i++)
 						if ((block.pointer.i == CodeIcons[i].I_Addr)
