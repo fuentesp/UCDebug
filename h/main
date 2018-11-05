@@ -31,7 +31,7 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.6.1 (4 - Nov - 2018)"
+#define AppVersion			"1.6.2 (5 - Nov - 2018)"
 #define SpriteName			"!ucdebug"
 #define CharSizeX			19
 #define CharSizeY			35
@@ -83,6 +83,7 @@
 #define Run_Tr				0x0002
 #define Run_Gt				0x0003
 #define Run_Gd				0x0004
+#define Run_Gf				0x0010
 #define Prg_End				0x0100
 #define SWI_WrC				0x0200
 #define SWI_WrL				0x0300
@@ -105,6 +106,7 @@
 #define OffPrHeadSize		0x2A
 #define OffPrHeadEntries	0x2C
 #define OffVirtAddr			0x8
+#define OffCodeEnd		0x58
 
 /* VISIBLE SIZE OF THE WINDOWS */
 #define CodeWinSizeX		(ConsLinSize*CharSizeX)
@@ -171,6 +173,7 @@ extern int LastShownContext[18];
 extern int AddrElfFile;
 extern int AddrCodeStart;
 extern int AddrCodeCur;
+extern int AddrCodeEnd;
 extern int AddrDataStart;
 extern int AddrDataCur;
 extern int BrkPtList[];

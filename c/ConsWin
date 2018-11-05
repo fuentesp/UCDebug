@@ -212,6 +212,7 @@ void ConsEscapeKey(wimp_w ConsWin) {
 	int lineSize = strlen(Console.T_LinInp);
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94 + 18 * lineSize, -3200, 34,
 		lineSize);
+	UpdateWindow(ConsWin); // Clear the command line by forcing the redrawal of the window
 	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1); // Redraw the window
 }
 

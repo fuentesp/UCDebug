@@ -49,6 +49,7 @@ int ExecType = Stop_Ex;
 int AddrElfFile;
 int AddrCodeStart;
 int AddrCodeCur;
+int AddrCodeEnd;
 int AddrDataStart;
 int AddrDataCur;
 int DebugAreaStart;
@@ -103,6 +104,7 @@ int main(int argc, char *argv[]) {
 		AddrElfFile = (DebugAreaStart & AddrMask) + OffElfFile;
 	AddrCodeStart = AddrElfFile + (OffStartCode - OffElfFile);
 	AddrCodeCur = AddrCodeStart;
+	AddrCodeEnd = AddrCodeStart;
 	AddrDataStart = AddrElfFile + (OffStartData - OffElfFile);
 	AddrDataCur = AddrDataStart;
 
@@ -304,11 +306,11 @@ void mainPoll(void) {
 				 * 	right button to move backwards, and click button to toggle the size
 				 * 	of the display blocks. */
 				if ((block.pointer.buttons == wimp_CLICK_SELECT)
-						&& validMemAddressRange(AddrDataCur + NumLinData * 16))
-					AddrDataCur = AddrDataCur + NumLinData * 16;
+						&& validMemAddressRange(AddrDataCur + (VisRows - 2) * 16))
+					AddrDataCur = AddrDataCur + (VisRows - 2) * 16;
 				if ((block.pointer.buttons == wimp_CLICK_ADJUST)
-						&& validMemAddressRange(AddrDataCur - NumLinData * 16))
-					AddrDataCur = AddrDataCur - NumLinData * 16;
+						&& validMemAddressRange(AddrDataCur - (VisRows - 2) * 16))
+					AddrDataCur = AddrDataCur - (VisRows - 2) * 16;
 				if (block.pointer.buttons == wimp_CLICK_MENU)
 					memDispType = (memDispType + 1) % 3;
 				DataWinRedraw(DataWin, AddrDataCur, 25, memDispType);

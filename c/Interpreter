@@ -38,6 +38,7 @@
 #define RUN_CMD "go"
 #define RUN_TO_CMD "gt"
 #define RUN_FAST_CMD "gf"
+#define RUN_DIRECT_CMD "gd"
 #define TRACE_CMD "tr"
 #define BRKPT_CMD "br"
 #define CLR_BRKPT_CMD "clr"
@@ -142,6 +143,24 @@ void interpreter(char *linea) {
 		ExecType = Run_Go;
 		runCode();
 	} else if (strcmp(args[0], RUN_FAST_CMD) == 0) {
+		if (nargs > 1) { /* Start executing the code from a given address; if no address
+		 is given, start executing the code from the default initial address */
+			addr = getAddr(args[1]);
+			if (!validMemAddressRange(addr)) {
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				ConsWrite(ConsWin, aux_msg);
+				return;
+			} else if (!alignedAddr(addr)) {
+				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
+				return;
+			} else {
+				CurContext.Regs[15] = addr;
+			}
+		}
+		/* Run fast, without tracing the execution of every instruction */
+		ExecType = Run_Gf;
+		runCode();
+	} else if (strcmp(args[0], RUN_DIRECT_CMD) == 0) {
 		if (nargs > 1) { /* Start executing the code from a given address; if no address
 		 is given, start executing the code from the default initial address */
 			addr = getAddr(args[1]);
@@ -328,23 +347,31 @@ void help() {
 			sizeof(help_msg) - sizeof(RUN_CMD));
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, RUN_FAST_CMD, sizeof(help_msg));
+	strncat(help_msg, "                     fast execution (beta mode)",
+			sizeof(help_msg) - sizeof(RUN_FAST_CMD) - 1);
+	ConsWrite(ConsWin, help_msg);
+	strncpy(help_msg, RUN_FAST_CMD, sizeof(help_msg));
+	strncat(help_msg, " <addr>              fast execution from <addr> (beta mode)",
+			sizeof(help_msg) - sizeof(RUN_FAST_CMD) - 1);
+	ConsWrite(ConsWin, help_msg);
+	strncpy(help_msg, RUN_DIRECT_CMD, sizeof(help_msg));
 	strncat(help_msg, "                     execute from the first instruction",
-			sizeof(help_msg) - sizeof(RUN_CMD) - 1);
+			sizeof(help_msg) - sizeof(RUN_DIRECT_CMD) - 1);
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, "                       without stopping at the breakpoints",
 			sizeof(help_msg));
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_FAST_CMD, sizeof(help_msg));
+	strncpy(help_msg, RUN_DIRECT_CMD, sizeof(help_msg));
 	strncat(help_msg, " <addr>              execute from the instruction in <addr>",
-			sizeof(help_msg) - sizeof(RUN_CMD) - 1);
+			sizeof(help_msg) - sizeof(RUN_DIRECT_CMD) - 1);
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, "                       without stopping at the breakpoints",
 			sizeof(help_msg));
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, RUN_TO_CMD, sizeof(help_msg));
-	strncat(help_msg, " ", sizeof(help_msg) - sizeof(RUN_CMD));
+	strncat(help_msg, " ", sizeof(help_msg) - sizeof(RUN_TO_CMD));
 	strncat(help_msg, " <addr>             execute without stopping at breakpoints",
-			sizeof(help_msg) - sizeof(RUN_CMD) - 1);
+			sizeof(help_msg) - sizeof(RUN_TO_CMD) - 1);
 	ConsWrite(ConsWin, help_msg);
 	strncpy(help_msg, "                       until <addr> is reached", sizeof(help_msg));
 	ConsWrite(ConsWin, help_msg);
@@ -477,6 +504,9 @@ void loadFile(char *filename) {
 						fseek(file, OffEntryPoint, SEEK_SET);
 						fread(&AddrCodeStart, 1, 4, file);
 						CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
+						fseek(file, OffCodeEnd, SEEK_SET);
+						fread(&AddrCodeEnd, 1, 4, file);
+						AddrCodeEnd += AddrElfFile;
 						/* Set stack pointer at the end of the ELF file loaded; ensure it is
 						 * aligned to a word */
 						DefStackCtx();
@@ -486,7 +516,7 @@ void loadFile(char *filename) {
 						fread(&AddrDataStart, 1, 4, file);
 						/* If data section starts out of range, set a default @ */
 						if (!validMemAddressRange(AddrDataStart))
-							AddrDataStart = AddrCodeStart;
+							AddrDataStart = AddrCodeEnd;
 						flength = sizeof(aux_msg)-strlen(SUCC_LOAD_MSG)+1;
 						strncpy(aux_msg2, filename, flength);
 						aux_msg2[flength] = 0;
@@ -515,6 +545,7 @@ void resetMemView() {
 	AddrDataCur = AddrDataStart;
 	memDispType = 0; /* Reset memory view to words */
 	DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
+	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
 }
 
 /* setMemView sets the Memory view window to start displaying the memory from a given
@@ -522,12 +553,14 @@ void resetMemView() {
 void setMemView(int startDir) {
 	AddrDataCur = startDir;
 	DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
+	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
 }
 
 /* resetCodeView resets the Code view window to start at the initial address */
 void resetCodeView() {
 	AddrCodeCur = AddrCodeStart;
 	CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
+	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
 }
 
 /* setCodeView sets the Code view window to start displaying the memory from a given
@@ -535,6 +568,7 @@ void resetCodeView() {
 void setCodeView(int startDir) {
 	AddrCodeCur = startDir;
 	CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
+	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
 }
 
 /* getAddr extracts a memory address from a string (typically input by the user). If the

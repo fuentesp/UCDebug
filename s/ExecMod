@@ -149,6 +149,8 @@ bne checkreturn
 @
 @ Set Brkpt in the following instruction
 @
+tst r0, #0xF0
+blne setfastbreakpoints		@ set breakpoints for Go-Fast mode
 bl setimmediatebreakpoints
 
 @
@@ -156,6 +158,7 @@ bl setimmediatebreakpoints
 @ from the debugged program, executes the instruction, stores part of the context from
 @ the debugged program (except sp, lr and CPSR) and disables the brkpt handler routine
 @
+jtp:
 bl jumptoprogram
 
 @
@@ -1011,6 +1014,8 @@ cmp r0,#3
 beq modeGT
 cmp r0,#4
 beq modeGD
+cmp r0, #0x10
+beq modeGF
 b   No_execute
 
 modeGO:     @ In GO mode
@@ -1106,6 +1111,30 @@ str r1,[r0]
 ldr r0, =Num_Loop
 cmp r0,r1
 bne Execute
+b No_execute
+
+modeGF:		@ In GoFast mode
+@
+@ it stops if a breakpoint set by the user has been reached
+ldr r0,=CurContext
+ldr r5,[r0,#60]			@ Load the PC of next instruction
+ldr r0,=CurNumBr
+ldr r6,[r0]			@ Load the number of BreakPoints
+ldr r0, =BrkPtList		@ Pointer to BreakPoints List
+loop_GF:
+   cmp r6,#0
+   beq Execute
+   ldr r1,[r0]
+   cmp r5,r1
+   beq end_loop_GF
+   sub r6, r6, #1
+   add r0, r0, #4
+   b   loop_GF
+end_loop_GF:
+   ldr r1,=ExecType
+   ldr r0, [r1]
+   add r0, r0, #0x1000   	@ Write the Stop_Br constant to warn of a
+   str r0,[r1]			@ reached breakpoint
 
 No_execute:
 mov r0,#0
@@ -1182,6 +1211,9 @@ ldr r0, =0x0E000090     	@ mask to get instruction type
 and r0, r5, r0
 cmp r0, #0x00000010
 bne sib_checkdpis
+and r0, r5, #0x0F900000		@ mask to see if it is a misc instr
+cmp r0, #0x01000000		@ check if misc instr
+beq sib_nextinst
 and r0, r5, #0xF000		@ check if the dest reg is PC
 cmp r0, #0xF000
 bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
@@ -1199,6 +1231,10 @@ cmp r0, #0x06100000		@ check if load with reg offset
 ldrne r0, =0x0E000010		@ mask to get instruction type
 andnes r0, r5, r0		@ check if data processing immediate shift
 bne sib_checkdpi
+ldr r0, =0x0F900010		@ mask to see if a misc instr
+and r0, r5, r0
+cmp r0, #0x01000000		@ check if it is a misc instr
+beq sib_nextinst
 and r0, r5, #0xF000		@ check if the dest reg is PC
 cmp r0, #0xF000
 bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
@@ -1263,6 +1299,102 @@ ldmia sp!, {r4-r7, pc}
 GetResultFromInst:
 bkpt @brkpt to provoke a prefetch abort (this inst should be replaced)
 mov pc, lr
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Set breakpoints for go-fast mode (at every breakpoint established by the user
+@ and at every SWI whose execution is captured)
+@
+setfastbreakpoints:
+ldr lr, =jtp
+stmdb sp!, {r4-r6, lr}
+ldr r4, =BrkpInst
+ldr r5, =immediatebreakpoints
+ldr r6, =immediatebreakpointnumber
+mov r0, #0
+str r0, [r6]	@ Reset # of breakpoints
+
+@ check the whole code (from the beginning of ELF file to beginning of data
+@ section)
+ldr r0, =AddrElfFile
+ldr r0, [r0]
+ldr r1, =AddrCodeEnd
+ldr r1, [r1]
+sfb_loop:
+ldr r2, [r0]		@ get instruction
+and r3, r2, #SWI_Mask
+cmp r3, #SWI_Mask
+bne sfb_checkinstr_end
+bic r2, r2, #Cond_Mask
+ldr r3, =Code_OSExit
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSWriteStr
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSWriteChar
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSGetChar
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSEnterOS
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSLeaveOS
+cmp r2, r3
+bne sfb_checkinstr_end
+
+sfb_setbrk:			@ set a breakpoint
+ldr r2, =CurContext
+ldr r2, [r2, #60]               @ get PC
+cmp r2, r0
+beq sfb_checkinstr_end          @ do not place brkpt in current PC
+ldr r2, [r0]			@ instruction to be saved
+str r0, [r5], #4		@ save address
+str r2, [r5], #4		@ save content
+str r4, [r0]			@ set the bkpt
+ldr r3, [r6]
+add r3, r3, #1			@ increase breakpoint counter
+str r3, [r6]			@ store the breakpoint counter
+
+sfb_checkinstr_end:
+add r0, r0, #4
+cmp r0, r1
+blt sfb_loop
+
+@ Now checked the breakpoints established by the user;
+@ check if any matches one already set
+ldr r0,=CurNumBr
+ldr r0,[r0]			@ Load the number of BreakPoints
+cmp r0, #0
+beq sfb_return			@ if no breakpoints, return from routine
+ldr r1, =BrkPtList		@ pointer to BreakPoints List
+sfb_loop2:
+ldr r2, [r1], #4		@ get address of the breakpoint
+ldr r3, =CurContext
+ldr r3, [r3, #60]               @ get PC
+cmp r2, r3
+beq sfb_checkloop2		@ do not place brkpt in current PC
+ldr r3, [r2]
+cmp r3, r4			@ check if a breakpoint is already in place
+beq sfb_checkloop2
+str r2, [r5], #4		@ save address
+str r3, [r5], #4		@ save content
+str r4, [r2]			@ set the bkpt
+ldr r3, [r6]
+add r3, r3, #1			@ increase breakpoint counter
+str r3, [r6]			@ store the breakpoint counter
+
+sfb_checkloop2:
+subs r0, r0, #1
+bne sfb_loop2
+
+sfb_return:
+mov r0,#0 @ flags, 0 for all memory
+swi 0x6E @ OS_SynchronizeCodeAreas
+
+ldmia sp!, {r4-r6, pc}
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
