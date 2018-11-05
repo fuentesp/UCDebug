@@ -49,6 +49,18 @@
 <h2>
 <a id="changeset" class="anchor" href="#changeset" aria-hidden="true"><span class="octicon octicon-link"></span></a>Changeset</h2>
 <ul>
+	<li>Improved GUI: registers whose value changes during the execution are shown in red. Shifting forward and backwards the range shown in the memory views has a smaller gap. Loading a file or resetting the memory views resets their window scroll. (v1.6.2)</li>
+	<li>Implemented 'go-fast' mode, which does not track the execution of every instruction in the user code, ensuring an execution time much closer to an execution outside the debugger. This feature is still in beta mode. (v1.6.2)</li>
+	<li>Renamed previous 'go-fast' mode (run without stopping at breakpoints) as 'go-direct' ('gd' command). (v1.6.2)</li>
+	<li>Debugger does not fail during the execution of certain misc. instructions (e.g., MSR). (v1.6.2)</li>	
+	<li>If the executable file does not have a data section, the 'Data' memory view starts displaying after the end of the code segment. (v1.6.2)</li>
+	<li>Emulated SWIs that do not require GUI (e.g., OS_EnterOS) do not go back to the GUI to speed up the execution. (v1.6.1)</li>
+	<li>Register values in privileged modes are now properly displayed. (v1.6.1)</li>
+	<li>'reg' command is now capable of updating the PC value. (v1.6.1)</li>
+	<li>Prevented execution of out-of-range instructions. (v1.6.1)</li>
+	<li>Execution properly controlled with instructions that update the PC. (v1.5.3)</li>
+	<li>Catched the behavior of SWI 0x4 to prevent error affecting since v1.5. (v1.5.3)</li>
+	<li>OS does not crash if user tries to load a folder instead of a file. (v1.5.2)</li>
 	<li>Added IRQ handling routine to address the use of interrupts within user code (currently in development). (v1.5.1)</li>
 	<li>Debugger does not throw segmentation fault if a SWI 0x2 in the user code receives an invalid address in R0. (v1.5.1)</li>
 	<li>Added Makefile to compile faster. 'compile' file now switches to debugger folder and runs a 'make' command. (v1.5.1)</li>
@@ -59,11 +71,12 @@
 </ul>
 
 <h2>
-<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.5.1)</h2>
+<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.6.2)</h2>
 
 <ul>
 	<li>Execution of code in Abort mode is not stable (LR in this mode becomes polluted).</li>
-	<li>Execution of certain instructions is not properly controlled (e.g., when PC is updated by an LDM instruction).</li>
+	<li>Paging errors during execution of the user code provoke an unhandled data abort.</li>
+	<li>'Go-fast' mode is unstable and may behave unpredictably.</li>
 </ul>
 <!-- <p>Currently there are not any known bugs.</p>
 -->
