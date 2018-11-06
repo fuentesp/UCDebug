@@ -1,0 +1,132 @@
+@ !UCDebug, ARM debugger for RISC OS.
+@ https://github.com/fuentesp/UCDebug
+@ Copyright (C) 2018  University of Cantabria
+@
+@ !UCDebug was developed by the Computer Architecture and Technology
+@ Group at the University of Cantabria. A comprehensive list of authors
+@ can be found in the file AUTHORS.txt.
+@
+@ You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+@ pablo.fuentes}@unican.es.
+@
+@ This program is free software: you can redistribute it and/or modify
+@ it under the terms of the GNU General Public License as published by
+@ the Free Software Foundation, either version 3 of the License, or
+@ (at your option) any later version.
+@
+@ This program is distributed in the hope that it will be useful,
+@ but WITHOUT ANY WARRANTY; without even the implied warranty of
+@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+@ GNU General Public License for more details.
+@
+@ You should have received a copy of the GNU General Public License
+@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+.global   EnableFPU
+.global   DefCurCtx
+.global   DefStackCtx
+.extern   CurContext
+.extern   DebugAreaEnd
+
+.text
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Function to activate the FPU (must be executed in privileged mode)
+EnableFPU:
+mrc p15, 0, r0, c1, c0, 2 @enable FPU
+orr r0,r0,#0x300000 @ enable single precision
+orr r0,r0,#0xC00000 @ also enable double precision
+mcr p15, 0, r0, c1, c0, 2 @at this point, the FPU is enabled to work with single and double precision
+mov r0,#0x40000000
+VMSR FPEXC,r0
+mov pc, lr
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Set CurContext to Default values
+@
+DefCurCtx:
+str lr,[sp, #-4]!
+str r0,[sp, #-4]!
+ldr r0,=CurContext
+stm r0,{r0-r15}
+ldr r1,[sp], #4
+str r1,[r0] @ write program r0 in its place
+mrs r1,CPSR
+str r1,[r0,#64]   @ CPSR of the user program
+add r2, r0, #68
+vstm r2, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2, #128] @ write FPSCR
+ands r2, r1, #0xF	@ Mask to select usr mode
+swieq 0x16	        @ If in user mode, switch to SVC
+bic r1, r1, #0xF        @ Regardless of previous mode,
+orr r1, r1, #0x3	@ switch to SVC mode
+msr CPSR, r1
+str lr, [r0, #204]	@ SVC lr
+mrs r2, SPSR
+str r2, [r0, #208]	@ SVC spsr
+bic r1, r1, #0x4	@ Switch from SVC to Abt mode
+msr CPSR, r1
+str lr, [r0, #216]	@ Abt lr
+mrs r2, SPSR
+str r2, [r0, #220]	@ Abt spsr
+bic r1, r1, #0xF
+orr r1, r1, #0xB	@ Switch from Abt to Und mode
+msr CPSR, r1
+str lr, [r0, #228]	@ Und lr
+mrs r2, SPSR
+str r2, [r0, #232]	@ Und spsr
+bic r1, r1, #0x9
+msr CPSR, r1		@ Switch from Und to IRQ mode
+str lr, [r0, #240]	@ IRQ lr
+mrs r2, SPSR
+str r2, [r0, #244]	@ IRQ spsr
+bic r1, r1, #0xF
+orr r1, r1, #0x1	@ Switch to FIQ mode
+msr CPSR, r1
+add r2, r0, #248
+stm r2, {r8-r14}	@ FIQ regs
+mrs r2, SPSR
+str r2, [r0, #276]	@ FIQ spsr
+orr r1, r1, #0xF
+msr CPSR, r1		@ Switch to SYS mode
+str lr, [r0, #56]	@ Usr lr
+
+ldr r1,[r0,#64]
+msr CPSR, r1		@ Switch back to original mode
+
+bl DefStackCtx
+
+ldr pc,[sp], #4
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Set Stack to Default values for all modes; start by the end of the debugarea
+@ and get the nearest lower address aligned to word. From there, dedicate
+@ 512Bytes for each stack mode except User, that has 5KB.
+@
+DefStackCtx:
+
+ldr r0,=CurContext
+ldr r3, =DebugAreaEnd
+ldr r3, [r3]            @ To properly set stack, get address of end of debugarea
+bic r3, r3, #0x3        @ Ensure the address is aligned to word
+str r3, [r0, #200]	@ SVC sp
+sub r3, r3, #0x200      @ (stack from SVC spans 512Bytes)
+str r3, [r0, #212]	@ Abt sp
+sub r3, r3, #0x200      @ (stack from Abt spans 512Bytes)
+str r3, [r0, #224]	@ Und sp
+sub r3, r3, #0x200      @ (stack from Und spans 512Bytes)
+str r3, [r0, #236]	@ IRQ sp
+sub r3, r3, #0x200      @ (stack from IRQ spans 512Bytes)
+str r3, [r0, #268]      @ FIQ sp
+sub r3, r3, #0x200      @ (stack from FIQ spans 512Bytes)
+str r3, [r0, #52]       @ Usr sp (will later be updated, when loading program)
+
+mov pc, lr
+
+
+.end

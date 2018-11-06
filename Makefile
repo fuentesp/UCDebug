@@ -57,12 +57,20 @@ Dbg.o: Debug.c $(HEADERS)
 Exec.o: ExecMod.s
 	as -mfpu=vfpv2 -o Exec.o ExecMod.s
 
-!UCDebug/!RunImage: ib.o CWin.o DWin.o RWin.o FPWin.o CoWin.o In.o Dbg.o Exec.o
-	gcc -Wl,--no-warn-mismatch -mfpu=vfp -LOSLib: -lOSLib32 -o !UCDebug/!RunImage Dbg.o ib.o CoWin.o CWin.o DWin.o RWin.o FPWin.o In.o Exec.o
+Hand.o:	Handler.s
+	as -mfpu=vfpv2 -o Hand.o Handler.s
+
+Aux.o:	Aux.s
+	as -mfpu=vfpv2 -o Aux.o Aux.s
+
+!UCDebug/!RunImage: ib.o CWin.o DWin.o RWin.o FPWin.o CoWin.o In.o Dbg.o Exec.o Hand.o Aux.o
+	gcc -Wl,--no-warn-mismatch -mfpu=vfp -LOSLib: -lOSLib32 -o !UCDebug/!RunImage Dbg.o ib.o CoWin.o CWin.o DWin.o RWin.o FPWin.o In.o Exec.o Hand.o Aux.o
 
 clean:
 	remove !UCDebug.!RunImage
 	remove o.Exec
+	remove o.Hand
+	remove o.Aux
 	remove o.Dbg
 	remove o.In
 	remove o.CoWin

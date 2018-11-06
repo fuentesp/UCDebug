@@ -1,0 +1,385 @@
+@ !UCDebug, ARM debugger for RISC OS.
+@ https://github.com/fuentesp/UCDebug
+@ Copyright (C) 2018  University of Cantabria
+@
+@ !UCDebug was developed by the Computer Architecture and Technology
+@ Group at the University of Cantabria. A comprehensive list of authors
+@ can be found in the file AUTHORS.txt.
+@
+@ You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+@ pablo.fuentes}@unican.es.
+@
+@ This program is free software: you can redistribute it and/or modify
+@ it under the terms of the GNU General Public License as published by
+@ the Free Software Foundation, either version 3 of the License, or
+@ (at your option) any later version.
+@
+@ This program is distributed in the hope that it will be useful,
+@ but WITHOUT ANY WARRANTY; without even the implied warranty of
+@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+@ GNU General Public License for more details.
+@
+@ You should have received a copy of the GNU General Public License
+@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+.global   PrefetchAbortHandler
+.global   UndefinedInstructHandler
+.global   DataAbortHandler
+.global   IRQHandler
+.extern   HandPreRel
+.extern   HandDatRel
+.extern   HandUndRel
+.extern   HandIRQRel
+.extern   CurContext
+.extern   ExecType
+
+.equ BrkpInst,    0xE1200071
+
+.text
+
+PrefetchAbortHandler:
+@@ Save context from all modes, starting from Abort mode
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+sub r1,lr,#4
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2!, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2] @ write FPSCR
+str sp, [r0, #212] @ write abort sp
+@str lr, [r0, #216] @ write abort lr
+mrs r3, spsr
+str r3, [r0, #220] @ write abort SPSR
+str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
+orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts
+orr r3, r3, #0x1F
+msr cpsr, r3 @ switch to system mode to access remaining user regs
+str sp, [r0, #52] @ write program sp in its place
+str lr, [r0, #56] @ write program lr in its place
+bic r3, r3, #0x4
+msr cpsr, r3 @ switch from System to Undefined mode
+str sp, [r0, #224] @ write undefined sp
+str lr, [r0, #228] @ write undefined lr
+mrs r2, spsr
+str r2, [r0, #232] @ write undefined SPSR in its place
+bic r3, r3, #0x9
+msr cpsr, r3 @ switch from Und to IRQ mode
+mrs r2, spsr
+str r2, [r0, #244] @ write IRQ SPSR in its place
+str sp, [r0, #236] @ write IRQ sp
+str lr, [r0, #240] @ write IRQ lr
+orr r3, r3, #0x1
+msr cpsr, r3 @ switch from IRQ to Supervisor mode
+mrs r2, spsr
+str r2, [r0, #208] @ write supervisor SPSR in its place
+str sp, [r0, #200] @ write supervisor sp
+str lr, [r0, #204] @ write supervisor lr
+bic r3, r3, #0x2
+msr cpsr, r3 @ switch to FIQ mode
+mrs r2, spsr
+str r2, [r0, #276] @ write FIQ SPSR in its place
+add r2, r0, #248
+stm r2, {r8-r14} @ write FIQ specific regs
+orr r3, r3, #0x1F
+msr cpsr, r3 @ switch to sys mode
+
+ldr r0,[r1]    @ read the instruction
+ldr r2,=BrkpInst @ code for bkpt 1
+cmp r0,r2
+beq ReleaseHandler
+@ mark Prefetch Abort
+ldr r1,=ExecType
+mov r0, #0x1300
+str r0,[r1]
+
+ldr r0,=CurContext
+ldr r1, [r0,#60]
+add r1, r1, #4
+str r1, [r0, #216] @ write abort lr (only if it is not a breakpoint)
+
+b  ReleaseHandler
+
+UndefinedInstructHandler:
+@@ Save context from all modes, starting from Undefined mode
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+sub r1,lr,#4
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2!, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2] @ write FPSCR
+str sp, [r0, #224] @ write undefined sp
+str lr, [r0, #228] @ write undefined lr
+mrs r3, spsr
+str r3, [r0, #232] @ write undefined SPSR in its place
+str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
+bic r3, r3, #0x9
+msr cpsr, r3 @ switch from Und to IRQ mode
+mrs r2, spsr
+str r2, [r0, #244] @ write IRQ SPSR in its place
+str sp, [r0, #236] @ write IRQ sp
+str lr, [r0, #240] @ write IRQ lr
+orr r3, r3, #0x1
+msr cpsr, r3 @ switch from IRQ to Supervisor mode
+mrs r2, spsr
+str r2, [r0, #208] @ write supervisor SPSR in its place
+str sp, [r0, #200] @ write supervisor sp
+str lr, [r0, #204] @ write supervisor lr
+bic r3, r3, #0x2
+msr cpsr, r3 @ switch to FIQ mode
+mrs r2, spsr
+str r2, [r0, #276] @ write FIQ SPSR in its place
+add r2, r0, #248
+stm r2, {r8-r14} @ write FIQ specific regs
+orr r3, r3, #0x6
+msr cpsr, r3 @ switch from FIQ to abort mode
+str sp, [r0, #212] @ write abort sp
+str lr, [r0, #216] @ write abort lr
+mrs r2, spsr
+str r2, [r0, #220] @ write abort SPSR
+orr r3, r3, #0x1F
+msr cpsr, r3 @ switch to system mode to access remaining user regs
+str sp, [r0, #52] @ write program sp in its place
+str lr, [r0, #56] @ write program lr in its place
+bic r3, r3, #0x1F
+msr cpsr, r3 @ switch to sys mode
+
+@ mark Undefined Instruction
+ldr r1,=ExecType
+mov r0, #0x1200
+str r0,[r1]
+
+b  ReleaseHandler
+
+DataAbortHandler:
+@@ Save context from all modes, starting from Abort mode
+sub sp,sp,#4
+str r0,[sp]
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1,[sp]
+str r1,[r0] @ write program r0 in its place
+add sp,sp,#4
+sub r1,lr,#8
+str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+add r2, r0, #68
+vstm r2!, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2] @ write FPSCR
+str sp, [r0, #212] @ write abort sp
+str lr, [r0, #216] @ write abort lr
+mrs r3, spsr
+str r3, [r0, #220] @ write abort SPSR
+str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
+orr r3, r3, #0x1F
+msr cpsr, r3 @ switch to system mode to access remaining user regs
+str sp, [r0, #52] @ write program sp in its place
+str lr, [r0, #56] @ write program lr in its place
+bic r3, r3, #0x4
+msr cpsr, r3 @ switch from System to Undefined mode
+str sp, [r0, #224] @ write undefined sp
+str lr, [r0, #228] @ write undefined lr
+mrs r2, spsr
+str r2, [r0, #232] @ write undefined SPSR in its place
+bic r3, r3, #0x9
+msr cpsr, r3 @ switch from Und to IRQ mode
+mrs r2, spsr
+str r2, [r0, #244] @ write IRQ SPSR in its place
+str sp, [r0, #236] @ write IRQ sp
+str lr, [r0, #240] @ write IRQ lr
+orr r3, r3, #0x1
+msr cpsr, r3 @ switch from IRQ to Supervisor mode
+mrs r2, spsr
+str r2, [r0, #208] @ write supervisor SPSR in its place
+str sp, [r0, #200] @ write supervisor sp
+str lr, [r0, #204] @ write supervisor lr
+bic r3, r3, #0x2
+msr cpsr, r3 @ switch to FIQ mode
+mrs r2, spsr
+str r2, [r0, #276] @ write FIQ SPSR in its place
+add r2, r0, #248
+stm r2, {r8-r14} @ write FIQ specific regs
+orr r3, r3, #0x6
+msr cpsr, r3 @ switch to sys mode
+
+@ mark Data Abort
+ldr r1,=ExecType
+mov r0, #0x1100
+str r0,[r1]
+
+b ReleaseHandler
+
+IRQHandler:
+mrs r0, spsr
+orr r0, r0, #0xF	@ the IRQ routine will exit in system mode
+bic r0, r0, #0x180	@ and with the IRQs enabled
+msr spsr, r0
+
+ldr r0, =ourregisters
+mrs r1, CPSR
+orr r1, r1, #0x1
+msr CPSR, r1		@switch from IRQ to SVC
+ldr sp, [r0, #200]	@ load debugger SVC sp
+ldr lr, [r0, #204] 	@ load debugger SVC lr
+ldr r2, [r0, #208]
+msr spsr, r2       	@ load debugger SVC spsr
+bic r1, r1, #0x1
+msr cpsr, r1 		@ switch from SVC to IRQ mode
+ldr sp, [r0, #236] 	@ load IRQ sp
+@ldr lr, [r0, #240] 	@ load IRQ lr
+@ldr r2, [r0, #244]
+@msr spsr, r2       	@ load IRQ SPSR
+orr r1, r1, #0x5
+msr cpsr, r1 		@ switch from IRQ to Abt mode
+ldr sp, [r0, #212] 	@ load abort sp
+ldr lr, [r0, #216] 	@ load abort lr
+ldr r2, [r0, #220]
+msr spsr, r2       	@ load abort SPSR
+bic r1, r1, #0x6
+msr cpsr, r1 		@ switch from Abt to FIQ mode
+add r2, r0, #248
+ldm r2, {r8-r14}   	@ load FIQ specific regs
+ldr r2, [r0, #276]
+msr spsr, r2       	@ load FIQ SPSR
+orr r1, r1, #0xA
+msr cpsr, r1 		@ switch from FIQ to Und mode
+ldr sp, [r0, #224] 	@ load undefined sp
+ldr lr, [r0, #228] 	@ load undefined lr
+ldr r2, [r0, #232]
+msr spsr, r2       	@ load undefined SPSR
+orr r1, r1, #0x1F
+msr cpsr, r1 		@ switch to Sys mode
+ldm r0, {r0-r14}  	@ recover general purpose regs (previous usr mode is unknown)
+ldr sp,=StackHandler 	@recover sp from system mode
+ldr sp,[sp]
+@bic r1,r1,#0xD
+@msr cpsr,r1 @ switch to IRQ
+
+ldr r0,=HandIRQRel
+ldr r1,[r0]
+mov r0,#0x6 @ release + IRQ
+ldr r2,=IRQHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandUndRel
+ldr r1,[r0]
+mov r0,#0x1 @ release + UNdefined instruction
+ldr r2,=UndefinedInstructHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandPreRel
+ldr r1,[r0]
+mov r0,#0x3 @ release + prefetch abort
+ldr r2,=PrefetchAbortHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandDatRel
+ldr r1,[r0]
+mov r0,#0x4 @ release + data abort
+ldr r2,=DataAbortHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+@switch again to IRQ mode
+mrs r0,cpsr
+bic r0,r0,#0xF
+orr r0,r0,#0x2
+@orr r0,r0,#0x180 @unnecessary, the swis do not change these.
+msr cpsr,r0
+
+ldr lr,=ReturnHandler @stop application execution
+ldr lr,[lr]
+add lr,lr,#4 @IRQ exceptions add 4 to the next execution to be executed
+
+ldr r0,=HandIRQRel
+ldr r0,[r0]
+bx r0 @jump to RISCOS IRQ
+
+
+ReleaseHandler:
+
+ldr r0,=ourregisters
+mrs r1, CPSR
+bic r1, r1, #0xC
+orr r1, r1, #0x180 @ disable IRQ
+msr CPSR, r1       @ switch from Sys to SVC
+ldr sp, [r0, #200] @ load debugger SVC sp
+ldr lr, [r0, #204] @ load debugger SVC lr
+ldr r2, [r0, #208]
+msr spsr, r2       @ load debugger SVC spsr
+bic r1, r1, #0x1
+msr cpsr, r1 @ switch from SVC to IRQ mode
+ldr sp, [r0, #236] @ load IRQ sp
+ldr lr, [r0, #240] @ load IRQ lr
+ldr r2, [r0, #244]
+msr spsr, r2       @ load IRQ SPSR
+orr r1, r1, #0x5
+msr cpsr, r1 @ switch from IRQ to Abt mode
+ldr sp, [r0, #212] @ load abort sp
+ldr lr, [r0, #216] @ load abort lr
+ldr r2, [r0, #220]
+msr spsr, r2       @ load abort SPSR
+bic r1, r1, #0x6
+msr cpsr, r1 @ switch from Abt to FIQ mode
+add r2, r0, #248
+ldm r2, {r8-r14}   @ load FIQ specific regs
+ldr r2, [r0, #276]
+msr spsr, r2       @ load FIQ SPSR
+orr r1, r1, #0xA
+msr cpsr, r1 @ switch from FIQ to Und mode
+ldr sp, [r0, #224] @ load undefined sp
+ldr lr, [r0, #228] @ load undefined lr
+ldr r2, [r0, #232]
+msr spsr, r2       @ load undefined SPSR
+orr r1, r1, #0x1F
+msr cpsr, r1 @ switch to Sys mode
+ldm r0, {r0-r14}  @ recover general purpose regs (previous usr mode is unknown)
+
+
+ldr r0,=HandDatRel
+ldr r1,[r0]
+mov r0,#0x4 @ release + data abort
+ldr r2,=DataAbortHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandUndRel
+ldr r1,[r0]
+mov r0,#0x1 @ release + UNdefined instruction
+ldr r2,=UndefinedInstructHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandPreRel
+ldr r1,[r0]
+mov r0,#0x3 @ release + prefetch abort
+ldr r2,=PrefetchAbortHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=HandIRQRel
+ldr r1,[r0]
+mov r0,#0x6 @ release + IRQ
+ldr r2,=IRQHandler
+swi 0x69 @ OS_ClaimProcessorVector
+
+ldr r0,=ReturnHandler
+ldr lr,[r0]
+ldr r0,=StackHandler
+ldr sp,[r0]
+
+mrs r0,cpsr
+bic r0,r0,#0x1C0	@ Re-enable imprecise aborts, fast interrupts,
+msr cpsr,r0		@ and normal interrupts
+
+mov pc, lr	@ Return in sys mode
+
+.end

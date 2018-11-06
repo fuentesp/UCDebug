@@ -800,6 +800,8 @@ void HandleSWI() {
 			for (i = 0; i < CurNumBr; i++)
 				if (CurContext.Regs[15] == BrkPtList[i]) {
 					ExecType = Stop_Ex; /* Stop the execution */
+					snprintf(aux_msg, sizeof(aux_msg), BREAKPOINT_MSG, CurContext.Regs[15]);
+					ConsWrite(ConsWin, aux_msg);
 					break;
 				}
 			break;
@@ -807,8 +809,11 @@ void HandleSWI() {
 			ExecType = Stop_Ex; /* Stop the execution */
 			break;
 		case Run_Gt:
-			if (CurContext.Regs[15] == GTBrkP)
+			if (CurContext.Regs[15] == GTBrkP) {
 				ExecType = Stop_Ex; /* Stop the execution */
+				snprintf(aux_msg, sizeof(aux_msg), GT_BRKPT_MSG, GTBrkP);
+				ConsWrite(ConsWin, aux_msg);
+			}
 			break;
 	}
 	ExecType = ExecType & CmdByteMask; /* Set state to normal exec */
