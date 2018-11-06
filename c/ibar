@@ -240,7 +240,10 @@ void ResetWindow(wimp_w WinHandle, int SizeX, int SizeY, int PosX, int PosY, int
 	Info->w = WinHandle;
 	wimp_get_window_info(Info);
 	Open->w = WinHandle;
-	Open->next = NextW;
+	if (NextW == 0)
+		Open->next = Info->next;
+	else
+		Open->next = NextW;
 	if (ScH < 0)
 		Open->xscroll = Info->xscroll;
 	else

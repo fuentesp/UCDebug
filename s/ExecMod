@@ -946,7 +946,6 @@ str r0, [r1]		@ store in r0 from usr context the char read in the SWI
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
-ldr r0, =0x10001
 str r0, [r1]
 b Default_checkinstr
 

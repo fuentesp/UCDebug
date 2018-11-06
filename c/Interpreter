@@ -545,7 +545,7 @@ void resetMemView() {
 	AddrDataCur = AddrDataStart;
 	memDispType = 0; /* Reset memory view to words */
 	DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
-	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
+	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) 0); // Reset scroll
 }
 
 /* setMemView sets the Memory view window to start displaying the memory from a given
@@ -553,14 +553,14 @@ void resetMemView() {
 void setMemView(int startDir) {
 	AddrDataCur = startDir;
 	DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
-	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
+	ResetWindow(DataWin, -1, -1, -1, -1, 0, 0, (wimp_w) 0); // Reset scroll
 }
 
 /* resetCodeView resets the Code view window to start at the initial address */
 void resetCodeView() {
 	AddrCodeCur = AddrCodeStart;
 	CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
-	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
+	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) 0); // Reset scroll
 }
 
 /* setCodeView sets the Code view window to start displaying the memory from a given
@@ -568,7 +568,7 @@ void resetCodeView() {
 void setCodeView(int startDir) {
 	AddrCodeCur = startDir;
 	CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
-	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) - 1); // Reset scroll
+	ResetWindow(CodeWin, -1, -1, -1, -1, 0, 0, (wimp_w) 0); // Reset scroll
 }
 
 /* getAddr extracts a memory address from a string (typically input by the user). If the

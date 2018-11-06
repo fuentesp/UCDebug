@@ -143,7 +143,7 @@ void ConsEnterKey(wimp_w ConsWin) {
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94, -3200, 34, 0);
 
 	/* Redraw window */
-	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1);
+	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) 0);
 }
 
 /* Activate the command window to be ready to receive characters */
@@ -213,7 +213,7 @@ void ConsEscapeKey(wimp_w ConsWin) {
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94 + 18 * lineSize, -3200, 34,
 		lineSize);
 	UpdateWindow(ConsWin); // Clear the command line by forcing the redrawal of the window
-	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) - 1); // Redraw the window
+	ResetWindow(ConsWin, -1, -1, -1, -1, 0, ConsLinTot * LinSizeY - ConsWinSizeY, (wimp_w) 0); // Redraw the window
 }
 
 /* Gains the input focus to the Console window (useful to be called from outside to get focus) */
@@ -302,4 +302,6 @@ void UsrWrite(wimp_w UsrWin, char *text) {
 
 	/* Redraw window */
 	UpdateWindow(UsrWin);
+	/* Bring I/O window to foreground */
+	ResetWindow(UsrWin, -1, -1, -1, -1, -1, -1, (wimp_w) -1);
 }
