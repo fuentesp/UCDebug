@@ -125,8 +125,12 @@ str lr, [r0, #228] @ write undefined lr
 mrs r3, spsr
 str r3, [r0, #232] @ write undefined SPSR in its place
 str r3, [r0, #64] @ write program CPSR (copied to SPSR when accessing excep)
-bic r3, r3, #0x9
-msr cpsr, r3 @ switch from Und to IRQ mode
+orr r3, r3, #0x1F
+msr cpsr, r3 @ switch to system mode to access remaining user regs
+str sp, [r0, #52] @ write program sp in its place
+str lr, [r0, #56] @ write program lr in its place
+bic r3, r3, #0xD
+msr cpsr, r3 @ switch from System to IRQ mode
 mrs r2, spsr
 str r2, [r0, #244] @ write IRQ SPSR in its place
 str sp, [r0, #236] @ write IRQ sp
@@ -150,10 +154,6 @@ str lr, [r0, #216] @ write abort lr
 mrs r2, spsr
 str r2, [r0, #220] @ write abort SPSR
 orr r3, r3, #0x1F
-msr cpsr, r3 @ switch to system mode to access remaining user regs
-str sp, [r0, #52] @ write program sp in its place
-str lr, [r0, #56] @ write program lr in its place
-bic r3, r3, #0x1F
 msr cpsr, r3 @ switch to sys mode
 
 @ mark Undefined Instruction
@@ -211,7 +211,7 @@ mrs r2, spsr
 str r2, [r0, #276] @ write FIQ SPSR in its place
 add r2, r0, #248
 stm r2, {r8-r14} @ write FIQ specific regs
-orr r3, r3, #0x6
+orr r3, r3, #0xF
 msr cpsr, r3 @ switch to sys mode
 
 @ mark Data Abort
