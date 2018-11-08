@@ -37,6 +37,7 @@
 .global   ourregisters
 .global   ReturnHandler
 .global   StackHandler
+.global   PrefetchAddress
 
 .equ SWI_Mask,    0x0F000000
 .equ Cond_Mask,   0xF0000000
@@ -62,6 +63,7 @@ HandUndRel:    .space  4
 HandIRQRel:    .space  4
 ReturnHandler: .space  4
 StackHandler:  .space  4
+PrefetchAddress:	.word 0
 
 immediatebreakpointnumber: .word 0
 immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
@@ -229,20 +231,17 @@ ldr r0,=CurContext
 ldr r0,[r0,#60]
 ldr r0,[r0] @ prefetch the instruction
 
-ldr r0,=CurContext
-ldr r1,[r0,#52]
-ldrb r1,[r1,#-4] @ prefetch the user mode stack
-ldr r1,[r0,#200]
-ldrb r1,[r1,#-4] @ prefetch the SVC stack
-ldr r1,[r0,#212]
-ldrb r1,[r1,#-4] @ prefetch the Abt stack
-ldr r1,[r0,#224]
-ldrb r1,[r1,#-4] @ prefetch the Und stack
-ldr r1,[r0,#236]
-ldrb r1,[r1,#-4] @ prefetch the IRQ stack
-ldr r1,[r0,#268]
-ldrb r1,[r1,#-4] @ prefetch the FIQ stack
 
+@ Prefetch a given address that has caused a page error
+ldr r1, =PrefetchAddress
+ldr r2, [r1]
+cmp r2, #0
+beq placeHandlers
+ldrb r3, [r2]
+mov r3, #0
+str r3, [r1]		@ Clear PrefetchAddress
+
+placeHandlers:
 mov r0,#0x01 @ claim + UNdefined instruction
 orr r0,r0,#0x100
 ldr r1,=UndefinedInstructHandler
@@ -255,7 +254,6 @@ str r1,[r0]
 mrs r1, cpsr
 orr r1, r1, #0x180	@ Disable imprecise aborts and interrupts
 msr cpsr, r1		@ to avoid inconsistent states
-
 
 mov r0,#0x03 @ claim + prefetch abort
 orr r0,r0,#0x100
@@ -620,8 +618,13 @@ b Execute
 
 modeTR:     @ In TR mode
 @
-@ Never execute the following instruction, it always returns to the CLI
+@ Never execute the following instruction, it always returns to the CLI...
+@ UNLESS there has been a data abort due to paging error
 @
+ldr r0, =PrefetchAddress
+ldr r0, [r0]
+cmp r0, #0	@ If address is non-zero, repeat the instruction
+bne Execute
 mov r0,#0
 b End_RetCLI
 

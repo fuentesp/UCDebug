@@ -214,7 +214,24 @@ stm r2, {r8-r14} @ write FIQ specific regs
 orr r3, r3, #0xF
 msr cpsr, r3 @ switch to sys mode
 
+
+@ check if data abort is due to paging error
+mrc p15, 0, r0, cr5, cr0, 0	@ Fault status register
+mov r1, #0x400
+orr r1, r1, #0xF                @ Mask for fault status
+and r0, r0, r1
+cmp r0, #0x7
+bne mDAb			@ If fault!=0b0111, mark as data abort
+mrc p15, 0, r0, cr6, cr0, 0	@ Conflict address
+mov r1, r0
+swi 0x3A @ OS_ValidateAddress
+bcs mDAb			@ If C flag active, address is outside valid range
+ldr r0, =PrefetchAddress	@ If valid address, store it to prefetch in
+str r1, [r0]			@ the next loop,
+b ReleaseHandler		@ and do not mark data abort
+
 @ mark Data Abort
+mDAb:
 ldr r1,=ExecType
 mov r0, #0x1100
 str r0,[r1]
