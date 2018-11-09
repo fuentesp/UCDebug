@@ -275,8 +275,8 @@ void interpreter(char *linea) {
 				}
 			}
 		}
-		setMemView(AddrDataCur);
-		setCodeView(AddrCodeCur);
+		DataWinRedraw(DataWin, AddrDataCur, NumLinData, memDispType);
+		CodeWinRedraw(CodeWin, AddrCodeCur, NumLinCode);
 	} else if (strcmp(args[0], REG_CMD) == 0) {
 		/* Change the value in a register */
 		if (nargs == 1) {
