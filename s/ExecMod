@@ -64,6 +64,7 @@ HandIRQRel:    .space  4
 ReturnHandler: .space  4
 StackHandler:  .space  4
 PrefetchAddress:	.word 0
+PendingGetChar:         .word 0
 
 immediatebreakpointnumber: .word 0
 immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
@@ -499,6 +500,19 @@ Else_checkinstr3:
 ldr r1, =Code_OSGetChar
 cmp r4, r1
 bne Else_checkinstr4
+ldr r0, =PendingGetChar
+ldr r1, [r0]
+cmp r1, #0
+bne RunGetChar		@ Check if getChar has been exec'd
+str r0, [r0]		@ Store in PendingGetChar its own address: anything non-zero
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x0600
+str r0, [r1]		@ Update ExecType, to ensure it goes to GUI
+b End_checkinstr
+RunGetChar:
+mov r1, #0
+str r1, [r0]		@ reset PendingGetChar var
 swi 0x4
 ldr r1, =CurContext
 str r0, [r1]		@ store in r0 from usr context the char read in the SWI

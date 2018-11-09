@@ -780,6 +780,15 @@ void HandleSWI() {
 				UsrWrite(UsrWin, ptr);
 			}
 			break;
+		case SWI_GeC: /* GetChar */
+			/* Open (if needed) the UsrWin and bring it to foreground */
+			if (WindowStates[UsrWinOffset] == wss_CLOSED)
+				UsrWin = UsrWinCreate(PosXUsrWin, PosYUsrWin);
+			else
+				ResetWindow(UsrWin, -1, -1, -1, -1, -1, -1, (wimp_w) -1);
+			/* Ensure it runs the instruction again (to actually execute SWI GetChar) */
+			if ((ExecType & CmdByteMask) == Stop_Ex) ExecType = Run_Tr;
+			break;
 //		case SWI_EnOS: /* EnterOS */
 //			/* Do nothing, and return control */
 //			break;
@@ -804,9 +813,6 @@ void HandleSWI() {
 					ConsWrite(ConsWin, aux_msg);
 					break;
 				}
-			break;
-		case Run_Tr:
-			ExecType = Stop_Ex; /* Stop the execution */
 			break;
 		case Run_Gt:
 			if (CurContext.Regs[15] == GTBrkP) {
