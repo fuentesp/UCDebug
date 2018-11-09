@@ -49,6 +49,12 @@
 <h2>
 <a id="changeset" class="anchor" href="#changeset" aria-hidden="true"><span class="octicon octicon-link"></span></a>Changeset</h2>
 <ul>
+	<li>Use of I/O SWIs brings I/O Console window to foreground. (v1.6.7)</li>
+	<li>Paging errors during the execution of the user code are handled through RISC OS to prevent data aborts. (v1.6.6)</li>
+	<li>Execution of undefined instructions warns the user instead of freezing the OS. (v1.6.5)</li>
+	<li>Stopping at a breakpoint set by the user after a SWI displays a message to warn of the breakpoint reached. (v1.6.4)</li>
+	<li>Resets of the scroll in the memory view windows (e.g., when loading a new executable file) do not force bring them to foreground. (v1.6.3)</li>
+	<li>Execution of SWI 0x4 (OS_ReadC) does not abandon trace mode. (v1.6.3)</li>
 	<li>Improved GUI: registers whose value changes during the execution are shown in red. Shifting forward and backwards the range shown in the memory views has a smaller gap. Loading a file or resetting the memory views resets their window scroll. (v1.6.2)</li>
 	<li>Implemented 'go-fast' mode, which does not track the execution of every instruction in the user code, ensuring an execution time much closer to an execution outside the debugger. This feature is still in beta mode. (v1.6.2)</li>
 	<li>Renamed previous 'go-fast' mode (run without stopping at breakpoints) as 'go-direct' ('gd' command). (v1.6.2)</li>
@@ -71,11 +77,10 @@
 </ul>
 
 <h2>
-<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.6.2)</h2>
+<a id="known-bugs" class="anchor" href="#known-bugs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Known Bugs (v1.6.7)</h2>
 
 <ul>
 	<li>Execution of code in Abort mode is not stable (LR in this mode becomes polluted).</li>
-	<li>Paging errors during execution of the user code provoke an unhandled data abort.</li>
 	<li>'Go-fast' mode is unstable and may behave unpredictably.</li>
 </ul>
 <!-- <p>Currently there are not any known bugs.</p>
