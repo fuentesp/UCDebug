@@ -31,7 +31,7 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.6.8 (9 - Nov - 2018)"
+#define AppVersion			"1.6.9 (15 - Nov - 2018)"
 #define SpriteName			"!ucdebug"
 #define CharSizeX			19
 #define CharSizeY			35
@@ -170,6 +170,7 @@ enum WinScreenStatus {
 extern osbool mainQuitFlag;
 extern int memDispType;
 extern struct ContextType CurContext;
+extern int CurUsrContext[18];
 extern int LastShownContext[18];
 extern int AddrElfFile;
 extern int AddrCodeStart;
@@ -181,6 +182,8 @@ extern int BrkPtList[];
 extern int CurNumBr;
 extern int GTBrkP;
 extern int ExecType;
+extern int DebugAreaStart;
+extern int DebugAreaEnd;
 extern wimp_t AppTask;
 extern wimp_w CodeWin;
 extern wimp_w DataWin;

@@ -41,6 +41,7 @@
 /* Global variables  */
 char DEBUG_AREA[DebugAreaSize];
 struct ContextType CurContext;
+int CurUsrContext[18];
 int LastShownContext[18];
 int BrkPtList[MaxBrPoints];
 int CurNumBr = 0;

@@ -24,6 +24,7 @@
 
 .global   CodeExecute
 .extern   CurContext
+.extern   CurUsrContext
 .extern   BrkPtList
 .extern   CurNumBr
 .extern   GTBrkP
@@ -154,6 +155,11 @@ bl setimmediatebreakpoints
 @
 jtp:
 bl jumptoprogram
+
+@
+@ Update vars from current user context
+@
+bl updateCurUsrContext
 
 @
 @ Remove Breakpoint from the following instruction
@@ -330,15 +336,10 @@ ldm r1, {r1-r14} @ load regs from usr mode (to update sp and lr, in case
                  @ the user program was left in a different user mode)
 ldr r1,[r0,#64]
 msr CPSR, r1 @ load usr CPSR
-ldr r1,=jumpregisters
-stm r1,{r0-r14} @missing r0,r1,pc
-ldr r2,[r0]
-str r2,[r1]	@missing r1, pc
-ldr r2,[r0,#4]
-str r2,[r1,#4]  @missing pc
-ldr r2, [r0, #60]
-str r2,[r1,#60]
-ldm r1,{r0-r15}     @ jump to user program
+ldr r0, =CurUsrContext
+ldm r0, {r0-r15}     @ jump to user program
+
+
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -431,7 +432,7 @@ ldmia sp!, {r4-r5, pc}
 CheckInst:
 stmdb sp!, {r4, lr}
 
-ldr r2,=CurContext
+ldr r2, =CurUsrContext
 ldr r0,[r2,#60]
 
 bl validMemAddressRange	@ before analysing the instruction, check if the address
@@ -516,6 +517,8 @@ str r1, [r0]		@ reset PendingGetChar var
 swi 0x4
 ldr r1, =CurContext
 str r0, [r1]		@ store in r0 from usr context the char read in the SWI
+ldr r1, =CurUsrContext
+str r0, [r1]		@ also store in context from current user mode
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
@@ -527,13 +530,19 @@ ldr r1, =Code_OSEnterOS
 cmp r4,r1
 bne Else_checkinstr5
 ldr r0,=CurContext
+ldr r2,=CurUsrContext
 ldr r1,[r0,#64]		@ CPSR
 str r1,[r0,#208]        @ Store previous CPSR in svc SPSR
+str r1,[r2,#68]		@ Also in current user mode SPSR
 bic r1,r1,#0x1F
 orr r1,r1,#0x13
 str r1,[r0,#64]		@ Update CPSR with the SVC user mode
+str r1,[r2,#64]		@ Also in current user mode CPSR
 ldr r1,[r0,#60]
 str r1,[r0,#204]        @ Store previous PC in LR
+str r1,[r2,#56]		@ Also in current user mode LR
+ldr r1,[r0,#200]	@ Get SP from SVC mode
+str r1,[r2,#52]		@ and update it in current user mode
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
@@ -548,6 +557,12 @@ ldr r0,=CurContext
 ldr r1,[r0,#64] 	@CPSR
 bic r1,r1,#0xF
 str r1,[r0,#64]		@Update CPSR with User mode
+ldr r2,=CurUsrContext
+str r1, [r2, #64]	@ Also in current user mode cpsr
+add r0, r0, #52
+ldm r0, {r0, r1}	@ Get specific regs from user mode
+add r2, r2, #52
+stm r2, {r0, r1}        @ And update them in current user mode SP and LR
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
@@ -558,9 +573,11 @@ Default_checkinstr:
 @ Do not execute the instruction
 @ Move forward PC
 ldr r0,=CurContext
+ldr r2,=CurUsrContext
 ldr r1,[r0,#60] @ PC
 add r1, r1, #4
 str r1,[r0,#60] @ PC = PC + 4
+str r1,[r2,#60]	@ also update it in current user mode
 
 End_checkinstr:
 ldr r1,=ExecType
@@ -727,7 +744,7 @@ mov pc,lr
 @
 setimmediatebreakpoints:
 stmdb sp!, {r4-r7, lr}
-ldr r6, =CurContext
+ldr r6, =CurUsrContext
 ldr r4, [r6, #60]	@ get PC
 ldr r5, [r4]		@ instruction to be executed
 
@@ -923,7 +940,7 @@ cmp r2, r3
 bne sfb_checkinstr_end
 
 sfb_setbrk:			@ set a breakpoint
-ldr r2, =CurContext
+ldr r2, =CurUsrContext
 ldr r2, [r2, #60]               @ get PC
 cmp r2, r0
 beq sfb_checkinstr_end          @ do not place brkpt in current PC

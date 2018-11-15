@@ -39,13 +39,11 @@
 
 PrefetchAbortHandler:
 @@ Save context from all modes, starting from Abort mode
-sub sp,sp,#4
-str r0,[sp]
+str r0, [sp, #-4]!
 ldr r0,=CurContext
 stm r0,{r0-r12}
-ldr r1,[sp]
-str r1,[r0] @ write program r0 in its place
-add sp,sp,#4
+ldr r1, [sp], #4
+str r1, [r0]		@ write program r0 in its place in CurContext
 sub r1,lr,#4
 str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
 add r2, r0, #68
@@ -99,21 +97,18 @@ mov r0, #0x1300
 str r0,[r1]
 
 ldr r0,=CurContext
-ldr r1, [r0,#60]
+ldr r1, [r0, #60]
 add r1, r1, #4
 str r1, [r0, #216] @ write abort lr (only if it is not a breakpoint)
-
 b  ReleaseHandler
 
 UndefinedInstructHandler:
 @@ Save context from all modes, starting from Undefined mode
-sub sp,sp,#4
-str r0,[sp]
+str r0, [sp, #-4]!
 ldr r0,=CurContext
 stm r0,{r0-r12}
-ldr r1,[sp]
-str r1,[r0] @ write program r0 in its place
-add sp,sp,#4
+ldr r1, [sp], #4
+str r1, [r0]		@ write program r0 in its place in CurContext
 sub r1,lr,#4
 str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
 add r2, r0, #68
@@ -165,15 +160,13 @@ b  ReleaseHandler
 
 DataAbortHandler:
 @@ Save context from all modes, starting from Abort mode
-sub sp,sp,#4
-str r0,[sp]
+str r0, [sp, #-4]!
 ldr r0,=CurContext
 stm r0,{r0-r12}
-ldr r1,[sp]
-str r1,[r0] @ write program r0 in its place
-add sp,sp,#4
-sub r1,lr,#8
-str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+ldr r1, [sp], #4
+str r1, [r0]		@ write program r0 in its place in CurContext
+sub r1, lr, #8
+str r1, [r0, #60] 	@ write program pc in its place (it is lr while in exception)
 add r2, r0, #68
 vstm r2!, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR

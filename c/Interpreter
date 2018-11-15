@@ -64,7 +64,7 @@
 #define MIS_LINKED_MSG		"File is not properly linked to address"
 #define FILE_TOO_BIG_MSG	"File exceeds maximum size allowed"
 #define MIS_ADDR_MSG		"Missing address parameter"
-#define INV_ADDR_MSG		"Address 0x%08X is out-of-range"
+#define INV_ADDR_MSG		"Address 0x%08X is out-of-range [0x%08X-0x%08X]"
 #define UNALIGN_ADDR_MSG	"Address is not aligned to word"
 #define UNALIGN_WORD_MSG	"Address 0x%08X is not aligned to store word 0x%08X"
 #define UNALIGN_HALF_MSG	"Address 0x%08X is not aligned to store half 0x%04X"
@@ -128,7 +128,7 @@ void interpreter(char *linea) {
 		if (nargs > 1) { /* Start executing the code from a given address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -136,6 +136,7 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
+				CurUsrContext[15] = addr;
 			}
 		}
 		/* If no address is given, start executing the code from the default initial
@@ -147,7 +148,7 @@ void interpreter(char *linea) {
 		 is given, start executing the code from the default initial address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -155,6 +156,7 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
+				CurUsrContext[15] = addr;
 			}
 		}
 		/* Run fast, without tracing the execution of every instruction */
@@ -165,7 +167,7 @@ void interpreter(char *linea) {
 		 is given, start executing the code from the default initial address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -173,6 +175,7 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
+				CurUsrContext[15] = addr;
 			}
 		}
 		/* Avoid stopping at the breakpoints */
@@ -184,7 +187,7 @@ void interpreter(char *linea) {
 				is given, start executing from the current address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -192,6 +195,7 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
+				CurUsrContext[15] = addr;
 			}
 		}
 		ExecType = Run_Tr;
@@ -204,7 +208,7 @@ void interpreter(char *linea) {
 		}
 		addr = getAddr(args[1]);
 		if (!validMemAddressRange(addr)) {
-			snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+			snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 			ConsWrite(ConsWin, aux_msg);
 			return;
 		} else if (!alignedAddr(addr)) {
@@ -227,7 +231,7 @@ void interpreter(char *linea) {
 			/* Toggle breakpoint */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -246,7 +250,7 @@ void interpreter(char *linea) {
 			/* Reset memory view, starting from specified address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -263,7 +267,7 @@ void interpreter(char *linea) {
 			} else {
 				addr = getAddr(strtok(args[i], ASSIGN_DELIMITER));
 				if (!validMemAddressRange(addr)) {
-					snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+					snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 					ConsWrite(ConsWin, aux_msg);
 					continue;
 				}
@@ -300,7 +304,7 @@ void interpreter(char *linea) {
 		} else {
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -504,6 +508,7 @@ void loadFile(char *filename) {
 						fseek(file, OffEntryPoint, SEEK_SET);
 						fread(&AddrCodeStart, 1, 4, file);
 						CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
+						CurUsrContext[15] = AddrCodeStart;
 						fseek(file, OffCodeEnd, SEEK_SET);
 						fread(&AddrCodeEnd, 1, 4, file);
 						AddrCodeEnd += AddrElfFile;
@@ -511,7 +516,9 @@ void loadFile(char *filename) {
 						 * aligned to a word */
 						DefStackCtx();
 						CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
+						CurUsrContext[13] = CurContext.Regs[13];
 						CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
+						CurUsrContext[16] = CurContext.CPSR;
 						fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 						fread(&AddrDataStart, 1, 4, file);
 						/* If data section starts out of range, set a default @ */
@@ -621,6 +628,7 @@ int setReg(char *str, char *str2) {
 	if (reg >= 0 && reg <= 16) {
 		op = 1; /* Assignation can be completed */
 		val = strtoul(str2, NULL, 0);
+		CurUsrContext[reg] = val;
 		switch (CurContext.CPSR & 0x01F) {
 			case 0x10:	/* User mode */
 			case 0x1F:	/* System mode */
@@ -770,10 +778,11 @@ void HandleSWI() {
 		case SWI_WrL: /* WriteString */
 			ptr = (char *) CurContext.Regs[0];
 			if (!validMemAddressRange((int) ptr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, (int) ptr);
+				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, (int) ptr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				ExecType = Stop_Ex; /* Stop execution */
 				CurContext.Regs[15] -= 4; /* PC = PC - 4, to null the PC+4 in ExecMod */
+				CurUsrContext[15] -= 4;
 			} else {
 				if (WindowStates[UsrWinOffset] == wss_CLOSED)
 					UsrWin = UsrWinCreate(PosXUsrWin, PosYUsrWin);
@@ -849,7 +858,7 @@ void HandleException() {
 			ConsWrite(ConsWin, aux_msg);
 			break;
 		case Ex_OoR: /* Out-of-Range instruction */
-			snprintf(aux_msg, sizeof(aux_msg), INV_ADDR_MSG, CurContext.Regs[15]);
+			snprintf(aux_msg, sizeof(aux_msg), INV_ADDR_MSG, CurContext.Regs[15], DebugAreaStart, DebugAreaEnd);
 			ConsWrite(ConsWin, aux_msg);
 			break;
 		default:
