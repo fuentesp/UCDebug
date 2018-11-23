@@ -29,7 +29,6 @@
 .extern   CurNumBr
 .extern   GTBrkP
 .extern   ExecType
-.extern	  GetResultFromInst
 .extern	  validMemAddressRange
 .global   HandPreRel
 .global   HandDatRel
@@ -39,6 +38,11 @@
 .global   ReturnHandler
 .global   StackHandler
 .global   PrefetchAddress
+.global   drivercount
+.global   drivertable
+.global   DbgControllerMask
+.global   UsrControllerMask
+.global   ControllerBaseAddress
 
 .equ SWI_Mask,    0x0F000000
 .equ Cond_Mask,   0xF0000000
@@ -48,6 +52,8 @@
 .equ Code_OSGetChar, 0x0F000004
 .equ Code_OSEnterOS, 0x0F000016
 .equ Code_OSLeaveOS, 0x0F00007C
+.equ Code_OSClaimDeviceVector, 0x0F00004B
+.equ Code_OSReleaseDeviceVector, 0x0F00004C
 .equ Num_Loop,    1000
 .equ BrkpInst,    0xE1200071
 
@@ -66,9 +72,17 @@ ReturnHandler: .space  4
 StackHandler:  .space  4
 PrefetchAddress:	.word 0
 PendingGetChar:         .word 0
+ControllerBaseAddress:  .word 0
 
 immediatebreakpointnumber: .word 0
 immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
+
+.align 2
+drivercount:          .word 0
+drivertable:          .space 120	@ 10 simultaneous drivers (device
+					@ number, driver address, R12 value)
+DbgControllerMask:    .word 0, 0, 0     @ masks for IRQs 1, 2, & basic in the GUI
+UsrControllerMask:    .word 0, 0, 0	@ masks for IRQs 1, 2 & basic in the user code
 
 .text
 
@@ -124,6 +138,14 @@ orr r1, r1, #0x1F
 msr cpsr, r1 @ switch to Sys mode
 str sp, [r0, #52] @ write user sp
 str lr, [r0, #56] @ write user lr
+
+ldr r0, =ControllerBaseAddress
+ldr r0, [r0]
+add r0, r0, #0x210
+ldm r0, {r1-r3}
+ldr r0, =DbgControllerMask
+stm r0, {r1-r3}			@ Store IRQ enable from GUI
+
 
 @
 @ Number of loops = 0
@@ -234,10 +256,11 @@ str sp,[r0]
 
 bl EnableFPU
 
-ldr r0,=CurContext
-ldr r0,[r0,#60]
+ldr r1,=CurContext
+ldr r0,[r1,#60]
 ldr r0,[r0] @ prefetch the instruction
-
+ldr r0,[r1,#212]
+ldr r0,[r0,#-4] @prefetch the data abort stack of the program
 
 @ Prefetch a given address that has caused a page error
 ldr r1, =PrefetchAddress
@@ -289,6 +312,27 @@ ldr r0, =HandIRQRel	@ remember to release r1
 str r1, [r0]
 
 @
+@ write disable and enable IRQ regs to only allow interrupts
+@ in the IRQ table to happen
+@
+mvn r1, #0			@ Load all bits to 1
+mov r2, r1
+bic r2, r2, #0x10000		@ Do NOT disable mouse
+mov r3, r1
+ldr r4, =ControllerBaseAddress
+ldr r4, [r4]
+add r5, r4, #0x21C
+str r1, [r5], #4                @ Disable all interrupts
+str r2, [r5], #4		@ one by one (a stm produces weird
+str r3, [r5], #4		@ effects)
+ldr r0, =UsrControllerMask
+ldm r0, {r1-r3}
+add r5, r4, #0x210
+str r1, [r5], #4		@ Enable those interrupts used by the user
+str r2, [r5], #4		@ (also register by register)
+str r3, [r5], #4
+
+@
 @ Load context from all modes
 @ TODO: define sp for all modes, to prevent errors
 @
@@ -311,7 +355,7 @@ ldr sp, [r0, #212] @ load abt sp
 ldr lr, [r0, #216] @ load abt lr
 ldr r2, [r0, #220]
 msr spsr, r2 @ load abt SPSR
-bic r1, r1, #0x1
+bic r1, r1, #0x5
 msr cpsr, r1 @ switch from Abt to IRQ mode
 ldr sp, [r0, #236] @ load IRQ sp
 ldr lr, [r0, #240] @ load IRQ lr
@@ -335,8 +379,8 @@ add r1, r0, #4
 ldm r1, {r1-r14} @ load regs from usr mode (to update sp and lr, in case
                  @ the user program was left in a different user mode)
 ldr r1,[r0,#64]
-msr CPSR, r1 @ load usr CPSR
 ldr r0, =CurUsrContext
+msr CPSR, r1 @ load usr CPSR
 ldm r0, {r0-r15}     @ jump to user program
 
 
@@ -427,13 +471,15 @@ ldmia sp!, {r4-r5, pc}
 @     - Code_OSGetChar
 @     - Code_OSEnterOS
 @     - Code_OSLeaveOS
+@     - Code_OSClaimDeviceVector
+@     - Code_OSReleaseDeviceVector
 @   Returns in r0 an ExecType that reports if the instruction will be executed or not.
 @
 CheckInst:
-stmdb sp!, {r4, lr}
+stmdb sp!, {r4, r5, lr}
 
-ldr r2, =CurUsrContext
-ldr r0,[r2,#60]
+ldr r5, =CurUsrContext
+ldr r0,[r5,#60]
 
 bl validMemAddressRange	@ before analysing the instruction, check if the address
 cmp r0, #0		@ is within the valid range
@@ -444,7 +490,7 @@ str r0,[r1]
 b End_checkinstr
 
 load_instruction:
-ldr r0,[r2,#60]
+ldr r0,[r5,#60]
 ldr r4,[r0] @ Load the instruction
 
 @ First check if it is a SWI; otherwise, jump to end
@@ -459,7 +505,7 @@ beq checkinstr1	@ Inconditional execution, check if it is one of the captured SW
 
 @ Conditional execution, verify if it will execute
 lsr r0, r1, #28         @ Load condition field
-ldr r1, [r2,#64]	@ Load CPSR
+ldr r1, [r5,#64]	@ Load CPSR
 bl CheckInstCond
 cmp r0, #0
 beq End_checkinstr	@ It the instruction will not be executed, skip checkings
@@ -530,19 +576,18 @@ ldr r1, =Code_OSEnterOS
 cmp r4,r1
 bne Else_checkinstr5
 ldr r0,=CurContext
-ldr r2,=CurUsrContext
 ldr r1,[r0,#64]		@ CPSR
 str r1,[r0,#208]        @ Store previous CPSR in svc SPSR
-str r1,[r2,#68]		@ Also in current user mode SPSR
+str r1,[r5,#68]		@ Also in current user mode SPSR
 bic r1,r1,#0x1F
 orr r1,r1,#0x13
 str r1,[r0,#64]		@ Update CPSR with the SVC user mode
-str r1,[r2,#64]		@ Also in current user mode CPSR
+str r1,[r5,#64]		@ Also in current user mode CPSR
 ldr r1,[r0,#60]
 str r1,[r0,#204]        @ Store previous PC in LR
-str r1,[r2,#56]		@ Also in current user mode LR
+str r1,[r5,#56]		@ Also in current user mode LR
 ldr r1,[r0,#200]	@ Get SP from SVC mode
-str r1,[r2,#52]		@ and update it in current user mode
+str r1,[r5,#52]		@ and update it in current user mode
 ldr r1, =ExecType
 ldr r0, [r1]
 add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
@@ -552,16 +597,15 @@ b Default_checkinstr
 Else_checkinstr5:
 ldr r1, =Code_OSLeaveOS
 cmp r4,r1
-bne End_checkinstr
+bne Else_checkinstr6
 ldr r0,=CurContext
 ldr r1,[r0,#64] 	@CPSR
 bic r1,r1,#0xF
 str r1,[r0,#64]		@Update CPSR with User mode
-ldr r2,=CurUsrContext
-str r1, [r2, #64]	@ Also in current user mode cpsr
+str r1, [r5, #64]	@ Also in current user mode cpsr
 add r0, r0, #52
 ldm r0, {r0, r1}	@ Get specific regs from user mode
-add r2, r2, #52
+add r2, r5, #52
 stm r2, {r0, r1}        @ And update them in current user mode SP and LR
 ldr r1, =ExecType
 ldr r0, [r1]
@@ -569,20 +613,130 @@ add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 
+Else_checkinstr6:
+ldr r1, =Code_OSClaimDeviceVector
+cmp r4, r1
+bne Else_checkinstr7
+ldr r0, [r5]		@ Check if the device should be used
+cmp r0, #64
+bge NotRunClaimDev
+@ check if interrupt already in GUI
+ldr r1, =DbgControllerMask
+cmp r0, #32
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+ldr r1, [r1]
+mov r2, #1
+lsl r2, r2, r0		@ translate device number into its bit within mask
+tst r1, r2
+bne NotRunClaimDev	@ device already in Dbg mask, should not be used
+@ place interrupt in user mask
+ldr r1, =UsrControllerMask
+cmp r0, #32
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+ldr r3, [r1]
+orr r3, r3, r2
+str r3, [r1]		@ add this device number to interrupt mask
+@ add interrupt routine to driver table
+ldr r0, =drivercount
+ldr r1, [r0]
+ldr r3, =drivertable
+add r3, r3, r1, LSL #2
+add r3, r3, r1, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
+add r1, r1, #1		@ increase number of active drivers
+str r1, [r0]
+ldm r5, {r0-r2}		@ load user regs r0-r2 (device number, driver @, R12 val)
+stm r3, {r0-r2}		@ store values in driver table entry
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+str r0, [r1]
+b Default_checkinstr
+NotRunClaimDev:
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x1500	@ Throw error: this device cannot be used
+str r0, [r1]
+b End_checkinstr
+
+Else_checkinstr7:
+ldr r1, =Code_OSReleaseDeviceVector
+cmp r4, r1
+bne End_checkinstr
+ldr r0, [r5]		@ load user reg r0 (device number)
+ldr r1, =drivercount
+ldr r2, [r1]
+ldr r3, =drivertable
+add r3, r3, r2, LSL #2
+add r3, r3, r2, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
+E_c7_fori:
+cmp r2, #0
+beq NotSetDev		@ if specified device is not in the table, throw error
+ldr r4, [r3, #-12]!	@ it starts loop pointing past last element in driver table
+sub r2, r2, #1
+cmp r4, r0
+bne E_c7_fori
+ldr r0, [r5, #4]	@ load user reg r1 (routine address)
+ldr r4, [r3, #4]	@ get routine address from entry in driver table
+cmp r0, r4
+ldrne r0, [r5]		@ restore in r0 the device number and jump back to the
+bne E_c7_fori		@ loop if the addresses do not match
+ldr r0, [r5, #8]	@ load user reg r2 (r12 value at entry of the routine)
+ldr r4, [r3, #8]	@ get r12 value from entry in driver table
+cmp r0, r4
+ldrne r0, [r5]		@ if values do not match, reload device number and go back to
+bne E_c7_fori		@ the loop
+@ released device matches entry in table... remove entry (pushing forward any
+@ entries behind), decrease number of drivers, and remove interrupt from user mask
+ldr r4, [r1]
+sub r4, r4, #1		@ decrease number of drivers for 2 reasons: to update value,
+E_c7_forj:              @ and because last entry has to be cleared
+cmp r2, r4
+bge E_c7_endfor
+stmdb sp!, {r0-r3}
+add r3, r4, #12		@ move pointer to next entry
+ldm r3, {r0-r2}		@ load values from entry
+stm r4, {r0-r2}		@ store in entry-1
+ldmia sp!, {r0-r3}
+add r4, r4, #12		@ move pointer forward
+add r2, r2, #1
+b E_c7_forj		@ go to the beginning of the loop
+E_c7_endfor:
+str r4, [r1]		@ update number of drivers
+ldr r0, [r5]		@ get device number
+mov r2, #1
+lsl r2, r2, r0		@ translate device number into its bit within mask
+ldr r1, =UsrControllerMask
+cmp r0, #32
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+ldr r3, [r1]
+bic r3, r3, r2
+str r3, [r1]		@ remove this device number to interrupt mask
+
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+str r0, [r1]
+b Default_checkinstr
+NotSetDev:
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #0x1600	@ Throw error for Device not Released
+str r0, [r1]
+b End_checkinstr
+
 Default_checkinstr:
 @ Do not execute the instruction
 @ Move forward PC
 ldr r0,=CurContext
-ldr r2,=CurUsrContext
 ldr r1,[r0,#60] @ PC
 add r1, r1, #4
 str r1,[r0,#60] @ PC = PC + 4
-str r1,[r2,#60]	@ also update it in current user mode
+str r1,[r5,#60]	@ also update it in current user mode
 
 End_checkinstr:
 ldr r1,=ExecType
 ldr r0, [r1]
-ldmia sp!, {r4, pc}
+ldmia sp!, {r4, r5, pc}
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @
@@ -874,6 +1028,12 @@ sib_nextinst:			@ Consecutive execution: next inst is at PC+4
 add r0, r4, #4
 
 sib_setbrk:			@ Set the breakpoint
+stmdb sp!, {r0-r3}              @ store context to keep it after function call
+bl validMemAddressRange
+cmp r0, #0
+ldmia sp!, {r0-r3}
+beq sib_end                     @ if address is outside user range, do not place
+				@ breakpoint (to account for IRQ release function)
 ldr r1, [r0] 			@ instruction to be saved
 ldr r2, =immediatebreakpoints
 str r0, [r2], #4		@ save address
@@ -886,7 +1046,7 @@ str r0, [r1]			@ store the breakpoint counter
 
 mov r0,#0 @ flags, 0 for all memory
 swi 0x6E @ OS_SynchronizeCodeAreas
-
+sib_end:
 ldmia sp!, {r4-r7, pc}
 
 
@@ -937,6 +1097,11 @@ cmp r2, r3
 beq sfb_setbrk
 ldr r3, =Code_OSLeaveOS
 cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSClaimDeviceVector
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSReleaseDeviceVector
 bne sfb_checkinstr_end
 
 sfb_setbrk:			@ set a breakpoint

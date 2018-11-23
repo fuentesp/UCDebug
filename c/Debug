@@ -63,6 +63,7 @@ int NumWindows = 6;
 osbool FPdispDoublePrec = FALSE;
 wimp_t AppTask;
 
+
 /* Handle to the different windows */
 wimp_w CodeWin; /* Code view window */
 wimp_w DataWin; /* Memory view window */
@@ -136,6 +137,7 @@ int main(int argc, char *argv[]) {
 static void main_initialize(void) {
 	AppTask = wimp_initialise(wimp_VERSION_RO3, AppName, NULL, NULL);
 	ibar_initialise();
+	InitializeDbgKernel();
 }
 
 /* ToggleBrk toggles a breakpoint at the specified address */

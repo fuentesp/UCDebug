@@ -29,6 +29,9 @@
 .extern   CurUsrContext
 .extern   DebugAreaEnd
 .global   updateCurUsrContext
+.global   InitializeDbgKernel
+
+.data
 
 .align 2
 CtxModeAddrTable:	.word 0, CurContext+268, CurContext+236, CurContext+200, CurContext+52, CurContext+52, CurContext+52, CurContext+212, CurContext+52, CurContext+52, CurContext+52, CurContext+224
@@ -169,5 +172,14 @@ add r2, r0, #32
 stm r2, {r3-r7}			@ Update regs r0-r12 in current user mode
 uCUC_end:
 ldmia sp!, {r0-r12, pc}
+
+InitializeDbgKernel:
+mov r0, #13
+ldr r1, =0x2000B000		@ base address for ARM interrupt reg
+mov r2, #0x228			@ 10 IRQ regs + 0x200 offset
+swi 0x68			@ OS_Memory
+ldr r0, =ControllerBaseAddress
+str r3, [r0]			@ store base address for IRQ regs
+mov pc, lr
 
 .end

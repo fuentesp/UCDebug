@@ -31,7 +31,7 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.6.9 (15 - Nov - 2018)"
+#define AppVersion			"1.7 (23 - Nov - 2018)"
 #define SpriteName			"!ucdebug"
 #define CharSizeX			19
 #define CharSizeY			35
@@ -95,6 +95,8 @@
 #define Ex_IIns				0x1200
 #define Ex_PAb				0x1300
 #define Ex_OoR				0x1400
+#define Ex_DnA				0x1500
+#define Ex_DnR				0x1600
 #define StateByteMask		0xFF00
 #define StateTypeMask		0xF000
 #define CmdByteMask			0x00FF
