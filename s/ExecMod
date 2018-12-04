@@ -197,6 +197,8 @@ bne Another_inst
 End_CodeExec:
 ldr r0,=ourregisters
 mrs r1, CPSR
+bic r1, r1, #0xC	@ switch to SVC mode
+msr cpsr, r1
 ldr sp, [r0, #200] @ load debugger SVC sp
 ldr lr, [r0, #204] @ load debugger SVC lr
 ldr r2, [r0, #208]
