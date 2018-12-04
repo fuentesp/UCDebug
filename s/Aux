@@ -26,14 +26,15 @@
 .global   DefCurCtx
 .global   DefStackCtx
 .extern   CurContext
-.extern   CurUsrContext
+.global   AuxCurContext
 .extern   DebugAreaEnd
-.global   updateCurUsrContext
+.global   loadAuxCurContext
 .global   InitializeDbgKernel
 
 .data
 
 .align 2
+AuxCurContext:		.space 18*4	@ reserve space for 18 regs (R0-r15+CPSR+SPSR)
 CtxModeAddrTable:	.word 0, CurContext+268, CurContext+236, CurContext+200, CurContext+52, CurContext+52, CurContext+52, CurContext+212, CurContext+52, CurContext+52, CurContext+52, CurContext+224
 
 .text
@@ -107,8 +108,6 @@ msr CPSR, r1		@ Switch back to original mode
 
 bl DefStackCtx
 
-bl updateCurUsrContext
-
 ldr pc,[sp], #4
 
 
@@ -142,11 +141,11 @@ mov pc, lr
 @
 @ Update the context from the current user mode
 @
-updateCurUsrContext:
+loadAuxCurContext:
 stmdb sp!, {r0-r12,lr}
 ldr r0, =CurContext
 ldm r0, {r0-r12}		@ Load values from user mode
-ldr r0, =CurUsrContext
+ldr r0, =AuxCurContext
 stm r0, {r0-r12}		@ Update them in current user mode
 ldr r1, =CurContext
 ldr r2, [r1]
@@ -156,21 +155,21 @@ ldm r2, {r3-r6}			@ Load sp, lr, pc & cpsr from user mode
 add r2, r0, #52
 stm r2, {r3-r6}			@ Update them in current user mode
 ands r6, r6, #0xF		@ Get current user mode
-beq uCUC_end                    @ User mode
+beq lACC_end                    @ User mode
 cmp r6, #0xF			@ System mode
-beq uCUC_end
+beq lACC_end
 ldr r3, =CtxModeAddrTable
 ldr r3, [r3, r6, LSL #2]	@ Get @ of the mode to get regs from
 ldm r3, {r3-r5}			@ Get regs
 stm r2, {r3-r4}  		@ Update sp & lr in current user mode
 str r5, [r0, #68]		@ Update spsr in current user mode
 cmp r6, #0x1			@ If FIQ mode, more regs need to be loaded
-bne uCUC_end
+bne lACC_end
 add r2, r1, #248
 ldm r2, {r3-r7}			@ Get FIQ regs
 add r2, r0, #32
 stm r2, {r3-r7}			@ Update regs r0-r12 in current user mode
-uCUC_end:
+lACC_end:
 ldmia sp!, {r0-r12, pc}
 
 InitializeDbgKernel:

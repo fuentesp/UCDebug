@@ -139,7 +139,6 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
-				CurUsrContext[15] = addr;
 			}
 		}
 		/* If no address is given, start executing the code from the default initial
@@ -159,7 +158,6 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
-				CurUsrContext[15] = addr;
 			}
 		}
 		/* Run fast, without tracing the execution of every instruction */
@@ -178,7 +176,6 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
-				CurUsrContext[15] = addr;
 			}
 		}
 		/* Avoid stopping at the breakpoints */
@@ -198,7 +195,6 @@ void interpreter(char *linea) {
 				return;
 			} else {
 				CurContext.Regs[15] = addr;
-				CurUsrContext[15] = addr;
 			}
 		}
 		ExecType = Run_Tr;
@@ -511,7 +507,6 @@ void loadFile(char *filename) {
 						fseek(file, OffEntryPoint, SEEK_SET);
 						fread(&AddrCodeStart, 1, 4, file);
 						CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
-						CurUsrContext[15] = AddrCodeStart;
 						fseek(file, OffCodeEnd, SEEK_SET);
 						fread(&AddrCodeEnd, 1, 4, file);
 						AddrCodeEnd += AddrElfFile;
@@ -519,9 +514,7 @@ void loadFile(char *filename) {
 						 * aligned to a word */
 						DefStackCtx();
 						CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
-						CurUsrContext[13] = CurContext.Regs[13];
 						CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
-						CurUsrContext[16] = CurContext.CPSR;
 						fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 						fread(&AddrDataStart, 1, 4, file);
 						/* If data section starts out of range, set a default @ */
@@ -631,7 +624,6 @@ int setReg(char *str, char *str2) {
 	if (reg >= 0 && reg <= 16) {
 		op = 1; /* Assignation can be completed */
 		val = strtoul(str2, NULL, 0);
-		CurUsrContext[reg] = val;
 		switch (CurContext.CPSR & 0x01F) {
 			case 0x10:	/* User mode */
 			case 0x1F:	/* System mode */
@@ -785,7 +777,6 @@ void HandleSWI() {
 				ConsWrite(ConsWin, aux_msg);
 				ExecType = Stop_Ex; /* Stop execution */
 				CurContext.Regs[15] -= 4; /* PC = PC - 4, to null the PC+4 in ExecMod */
-				CurUsrContext[15] -= 4;
 			} else {
 				if (WindowStates[UsrWinOffset] == wss_CLOSED)
 					UsrWin = UsrWinCreate(PosXUsrWin, PosYUsrWin);
