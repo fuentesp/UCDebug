@@ -22,6 +22,8 @@
 @ You should have received a copy of the GNU General Public License
 @ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+.include  "s/Constants"
+
 .global   PrefetchAbortHandler
 .global   UndefinedInstructHandler
 .global   DataAbortHandler
@@ -29,24 +31,7 @@
 .global   ReleaseHandler
 .extern   CurContext
 .extern   ExecType
-
-.equ BrkpInst,    0xE1200071
-@@ Offsets to handle CurContext structure
-.equ OffCpsr,		64
-.equ OffFPRegs,		68
-.equ OffSvcRegs,	200
-.equ OffAbtRegs,	212
-.equ OffUndRegs,	224
-.equ OffIrqRegs,	236
-.equ OffFiqRegs,	248
-
-.equ MaskDisIRQs,	0x180	@ Disable interrupts and imprecise aborts
-.equ MaskSysMode,	0x1F	@ Enter System mode
-.equ MaskSvcMode,	0x13	@ Enter Supervisor mode
-.equ MaskAbtMode,	0x17	@ Enter Abort mode
-.equ MaskUndMode,	0x1B	@ Enter Undefined mode
-.equ MaskIrqMode,	0x12	@ Enter IRQ mode
-.equ MaskFiqMode,	0x11	@ Enter FIQ mode
+.extern   ControllerBaseAddress
 
 .data
 
@@ -117,13 +102,13 @@ cmp r0,r2
 beq ReleaseHandler
 @ mark Prefetch Abort
 ldr r1,=ExecType
-mov r0, #0x1300
+mov r0, #Ex_PAb
 str r0,[r1]
 
 ldr r0,=CurContext
 ldr r1, [r0, #60]
 add r1, r1, #4
-str r1, [r0, #216] @ write abort lr (only if it is not a breakpoint)
+str r1, [r0, #OffAbtRegs+4]	@ write abort lr (only if it is not a breakpoint)
 b  ReleaseHandler
 
 UndefinedInstructHandler:
@@ -177,7 +162,7 @@ msr cpsr, r3 @ switch to sys mode
 
 @ mark Undefined Instruction
 ldr r1,=ExecType
-mov r0, #0x1200
+mov r0, #Ex_IIns
 str r0,[r1]
 
 b  ReleaseHandler
@@ -240,7 +225,7 @@ cmp r0, #0x7
 bne mDAb			@ If fault!=0b0111, mark as data abort
 mrc p15, 0, r0, cr6, cr0, 0	@ Conflict address
 mov r1, r0
-swi 0x3A @ OS_ValidateAddress
+swi OS_ValidateAddress
 bcs mDAb			@ If C flag active, address is outside valid range
 ldr r0, =PrefetchAddress	@ If valid address, store it to prefetch in
 str r1, [r0]			@ the next loop,
@@ -249,7 +234,7 @@ b ReleaseHandler		@ and do not mark data abort
 @ mark Data Abort
 mDAb:
 ldr r1,=ExecType
-mov r0, #0x1100
+mov r0, #Ex_DAb
 str r0,[r1]
 
 b ReleaseHandler
@@ -269,47 +254,47 @@ str r4, [r0, #60] 	@ write program pc in its place
 ldmia sp!, {r1-r5, r6}
 stm r0, {r1-r5}		@ write program r0-r4 in their place in CurContext
 str r6, [r0, #48]	@ write program r12 (ip) in its place
-add r2, r0, #68
+add r2, r0, #OffFPRegs
 vstm r2!, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR
 str r3, [r2] @ write FPSCR
 mrs r3, spsr
-str r3, [r0, #244] @ write IRQ SPSR in its place
-str sp, [r0, #236] @ write IRQ sp
-str lr, [r0, #240] @ write IRQ lr
-orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts
-orr r3, r3, #0x1F
+str r3, [r0, #OffIrqRegs+8] @ write IRQ SPSR in its place
+str sp, [r0, #OffIrqRegs] @ write IRQ sp
+str lr, [r0, #OffIrqRegs+4] @ write IRQ lr
+orr r3, r3, #MaskDisIRQs	@ Disable interrupts and imprecise aborts
+orr r3, r3, #MaskSysMode
 msr cpsr, r3 @ switch to system mode to access remaining user regs
 str sp, [r0, #52] @ write program sp in its place
 str lr, [r0, #56] @ write program lr in its place
 bic r3, r3, #0x4
 msr cpsr, r3 @ switch from System to Undefined mode
-str sp, [r0, #224] @ write undefined sp
-str lr, [r0, #228] @ write undefined lr
+str sp, [r0, #OffUndRegs] @ write undefined sp
+str lr, [r0, #OffUndRegs+4] @ write undefined lr
 mrs r2, spsr
-str r2, [r0, #232] @ write undefined SPSR in its place
+str r2, [r0, #OffUndRegs+8] @ write undefined SPSR in its place
 bic r3, r3, #0x8
 msr cpsr, r3 @ switch from undefined to Supervisor mode
 mrs r2, spsr
-str r2, [r0, #208] @ write supervisor SPSR in its place
-str sp, [r0, #200] @ write supervisor sp
-str lr, [r0, #204] @ write supervisor lr
+str r2, [r0, #OffSvcRegs+8] @ write supervisor SPSR in its place
+str sp, [r0, #OffSvcRegs] @ write supervisor sp
+str lr, [r0, #OffSvcRegs+4] @ write supervisor lr
 orr r3, r3, #0x4
 msr cpsr, r3 @ switch from supervisor to Abort mode
 mrs r2, spsr
-str sp, [r0, #212] @ write abort sp
-str lr, [r0, #216] @ write abort lr
-str r2, [r0, #220] @ write abort SPSR
+str sp, [r0, #OffAbtRegs] @ write abort sp
+str lr, [r0, #OffAbtRegs+4] @ write abort lr
+str r2, [r0, #OffAbtRegs+8] @ write abort SPSR
 bic r3, r3, #0x6
 msr cpsr, r3 @ switch from Abort to FIQ mode
 mrs r2, spsr
-str r2, [r0, #276] @ write FIQ SPSR in its place
-add r2, r0, #248
+str r2, [r0, #OffFiqRegs+7*4] @ write FIQ SPSR in its place
+add r2, r0, #OffFiqRegs
 stm r2, {r8-r14} @ write FIQ specific regs
 IRQH_CheckIRQ:
 mrs r3, cpsr
-orr r3, r3, #0x180	@ Disable interrupts and imprecise aborts
-orr r3, r3, #0xF
+orr r3, r3, #MaskDisIRQs	@ Disable interrupts and imprecise aborts
+orr r3, r3, #MaskSysMode
 msr cpsr, r3 		@ switch to sys mode
 @ Check if entry has an associated driver in the table
 ldr r0, =drivercount
@@ -350,14 +335,14 @@ ldr r2, [r1, #4]		@ get driver address
 str r2, [r0, #60]		@ and store it in user PC
 ldr r2, [r1, #8]		@ get R12 value for driver
 str r2, [r0, #48]		@ and store it in user R12 reg
-ldr r1, [r0, #64]		@ get user CPSR
-str r1, [r0, #244]		@ store previous CPSR in IRQ SPSR
-bic r1, r1, #0x1F		@ clear current user mode
-orr r1, r1, #0x12		@ update user CPSR to IRQ mode
-orr r1, r1, #0x180		@ disable IRQs
-str r1, [r0, #64]
+ldr r1, [r0, #OffCpsr]		@ get user CPSR
+str r1, [r0, #OffIrqRegs+8]	@ store previous CPSR in IRQ SPSR
+bic r1, r1, #MaskSysMode	@ clear current user mode
+orr r1, r1, #MaskIrqMode	@ update user CPSR to IRQ mode
+orr r1, r1, #MaskDisIRQs	@ disable IRQs
+str r1, [r0, #OffCpsr]
 ldr r1, =IRQFinishHandler	@ store return @ (function to get back to prev mode)
-str r1, [r0, #240]		@ in IRQ lr
+str r1, [r0, #OffIrqRegs+4]	@ in IRQ lr
 b ReleaseHandler
 
 @
@@ -368,48 +353,48 @@ IRQFinishHandler:
 mrs r2, cpsr
 ands r1, r2, #0xF
 swieq 0x16			@ if in user mode, switch to SVC
-orr r2, r2, #0x180		@ disable IRQs
-orr r2, r2, #0x1F
+orr r2, r2, #MaskDisIRQs	@ disable IRQs
+orr r2, r2, #MaskSysMode
 msr cpsr, r2			@ switch to SYS mode
 @@ Save context from all modes, starting from SYS mode
 ldr r0, =CurContext
 add r1, r0, #16                 @ write program r4-r14 in CurContext (remember
 stm r1, {r4-r14}		@ that r0-r3 & r12 are restored later from bkup)
-add r1, r0, #68
+add r1, r0, #OffFPRegs
 vstm r1!, {s0-s31} 		@ write floating-point regs
 vmrs r3, FPSCR
 str r3, [r1] 			@ write FPSCR
 bic r2, r2, #0xD		@ switch from SYS to IRQ
 msr cpsr, r2
 mrs r3, spsr
-str r3, [r0, #244] 		@ write IRQ SPSR in its place
-str sp, [r0, #236] 		@ write IRQ sp
-str lr, [r0, #240] 		@ write IRQ lr
+str r3, [r0, #OffIrqRegs+8]	@ write IRQ SPSR in its place
+str sp, [r0, #OffIrqRegs]	@ write IRQ sp
+str lr, [r0, #OffIrqRegs+4]	@ write IRQ lr
 orr r2, r2, #0x9		@ switch from IRQ to Undefined mode
 msr cpsr, r2
-str sp, [r0, #224] 		@ write undefined sp
-str lr, [r0, #228] 		@ write undefined lr
+str sp, [r0, #OffUndRegs]	@ write undefined sp
+str lr, [r0, #OffUndRegs+4]	@ write undefined lr
 mrs r3, spsr
-str r3, [r0, #232] 		@ write undefined SPSR in its place
+str r3, [r0, #OffUndRegs+8]	@ write undefined SPSR in its place
 bic r2, r2, #0x8
 msr cpsr, r2 			@ switch from undefined to Supervisor mode
 mrs r3, spsr
-str r3, [r0, #208] 		@ write supervisor SPSR in its place
-str sp, [r0, #200] 		@ write supervisor sp
-str lr, [r0, #204] 		@ write supervisor lr
+str r3, [r0, #OffSvcRegs+8]	@ write supervisor SPSR in its place
+str sp, [r0, #OffSvcRegs]	@ write supervisor sp
+str lr, [r0, #OffSvcRegs+4]	@ write supervisor lr
 orr r2, r2, #0x4
 msr cpsr, r2 			@ switch from supervisor to Abort mode
 mrs r3, spsr
-str sp, [r0, #212] 		@ write abort sp
-str lr, [r0, #216] 		@ write abort lr
-str r3, [r0, #220] 		@ write abort SPSR
+str sp, [r0, #OffAbtRegs]	@ write abort sp
+str lr, [r0, #OffAbtRegs+4] 	@ write abort lr
+str r3, [r0, #OffAbtRegs+8]	@ write abort SPSR
 bic r2, r2, #0x6
 msr cpsr, r2			@ switch from Abort to FIQ mode
 mrs r3, spsr
-str r3, [r0, #276] 		@ write FIQ SPSR in its place
-add r3, r0, #248
+str r3, [r0, #OffFiqRegs+28]	@ write FIQ SPSR in its place
+add r3, r0, #OffFiqRegs
 stm r3, {r8-r14} 		@ write FIQ specific regs
-orr r2, r2, #0x1F		@ switch back to SYS mode
+orr r2, r2, #MaskSysMode	@ switch back to SYS mode
 msr cpsr, r2
 
 ldr r1, =IRQregBkup
@@ -419,8 +404,8 @@ ldr r2, [r1], #4 		@ plus r12
 str r2, [r0, #48]
 ldr r2, [r1]     		@ and current user PC
 str r2, [r0, #60]
-ldr r1, [r0, #244]		@ get SPSR from user IRQ mode
-str r1, [r0, #64]		@ and restore it in user CPSR
+ldr r1, [r0, #OffIrqRegs+8]	@ get SPSR from user IRQ mode
+str r1, [r0, #OffCpsr]		@ and restore it in user CPSR
 b ReleaseHandler
 
 
@@ -429,37 +414,37 @@ ldr r0,=ourregisters
 mrs r1, CPSR
 orr r1,r1,#0xF
 bic r1, r1, #0xC
-orr r1, r1, #0x180 @ disable IRQ
+orr r1, r1, #MaskDisIRQs	@ disable IRQ
 msr CPSR, r1       @ switch from Sys to SVC
-ldr sp, [r0, #200] @ load debugger SVC sp
-ldr lr, [r0, #204] @ load debugger SVC lr
-ldr r2, [r0, #208]
+ldr sp, [r0, #OffSvcRegs]	@ load debugger SVC sp
+ldr lr, [r0, #OffSvcRegs+4]	@ load debugger SVC lr
+ldr r2, [r0, #OffSvcRegs+8]
 msr spsr, r2       @ load debugger SVC spsr
 bic r1, r1, #0x1
 msr cpsr, r1 @ switch from SVC to IRQ mode
-ldr sp, [r0, #236] @ load IRQ sp
-ldr lr, [r0, #240] @ load IRQ lr
-ldr r2, [r0, #244]
+ldr sp, [r0, #OffIrqRegs]	@ load IRQ sp
+ldr lr, [r0, #OffIrqRegs+4]	@ load IRQ lr
+ldr r2, [r0, #OffIrqRegs+8]
 msr spsr, r2       @ load IRQ SPSR
 orr r1, r1, #0x5
 msr cpsr, r1 @ switch from IRQ to Abt mode
-ldr sp, [r0, #212] @ load abort sp
-ldr lr, [r0, #216] @ load abort lr
-ldr r2, [r0, #220]
+ldr sp, [r0, #OffAbtRegs]	@ load abort sp
+ldr lr, [r0, #OffAbtRegs+4]	@ load abort lr
+ldr r2, [r0, #OffAbtRegs+8]
 msr spsr, r2       @ load abort SPSR
 bic r1, r1, #0x6
 msr cpsr, r1 @ switch from Abt to FIQ mode
-add r2, r0, #248
+add r2, r0, #OffFiqRegs
 ldm r2, {r8-r14}   @ load FIQ specific regs
-ldr r2, [r0, #276]
+ldr r2, [r0, #OffFiqRegs+28]
 msr spsr, r2       @ load FIQ SPSR
 orr r1, r1, #0xA
 msr cpsr, r1 @ switch from FIQ to Und mode
-ldr sp, [r0, #224] @ load undefined sp
-ldr lr, [r0, #228] @ load undefined lr
-ldr r2, [r0, #232]
+ldr sp, [r0, #OffUndRegs]	@ load undefined sp
+ldr lr, [r0, #OffUndRegs+4]	@ load undefined lr
+ldr r2, [r0, #OffUndRegs+8]
 msr spsr, r2       @ load undefined SPSR
-orr r1, r1, #0x1F
+orr r1, r1, #MaskSysMode
 msr cpsr, r1 @ switch to Sys mode
 ldm r0, {r0-r14}  @ recover general purpose regs (previous usr mode is unknown)
 
@@ -487,25 +472,25 @@ ldr r0,=HandDatRel
 ldr r1,[r0]
 mov r0,#0x4 @ release + data abort
 ldr r2,=DataAbortHandler
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 
 ldr r0,=HandUndRel
 ldr r1,[r0]
 mov r0,#0x1 @ release + UNdefined instruction
 ldr r2,=UndefinedInstructHandler
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 
 ldr r0,=HandPreRel
 ldr r1,[r0]
 mov r0,#0x3 @ release + prefetch abort
 ldr r2,=PrefetchAbortHandler
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 
 ldr r0,=HandIRQRel
 ldr r1,[r0]
 mov r0,#0x6 @ release + IRQ
 ldr r2,=IRQHandler
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 
 ldr r0,=ReturnHandler
 ldr lr,[r0]

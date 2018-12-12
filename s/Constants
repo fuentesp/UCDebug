@@ -1,0 +1,111 @@
+@ SWIs
+.equ	OS_ClaimProcessorVector,	0x69
+.equ	OS_EnterOS,			0x16
+.equ	OS_LeaveOS,			0x7C
+.equ	OS_Memory,			0x68
+.equ	OS_ReadC,			0x04
+.equ	OS_SynchronizeCodeAreas,	0x6E
+.equ	OS_ValidateAddress,		0x3A
+
+@ Hardware-related constants
+.equ	BCM2835_id,		0x410FB767
+.equ	BCM2836_id,		0x410FC075
+.equ	BCM2837_id,		0x410FD034
+.equ	Pi1_Irq_Addr,		0x2000B000
+.equ	Pi2_Irq_Addr,		0x3F00B000
+
+@ Offsets to handle CurContext structure
+.equ	OffCpsr,		64
+.equ	OffFPRegs,		68
+.equ	OffFpscr,		196
+.equ	OffSvcRegs,		200
+.equ	OffAbtRegs,		212
+.equ	OffUndRegs,		224
+.equ	OffIrqRegs,		236
+.equ	OffFiqRegs,		248
+
+@ Masks to change user mode
+.equ	MaskDisIRQs,		0x180	@ Disable interrupts and imprecise aborts
+.equ	MaskSysMode,		0x1F	@ Enter System mode
+.equ	MaskSvcMode,		0x13	@ Enter Supervisor mode
+.equ	MaskAbtMode,		0x17	@ Enter Abort mode
+.equ	MaskUndMode,		0x1B	@ Enter Undefined mode
+.equ	MaskIrqMode,		0x12	@ Enter IRQ mode
+.equ	MaskFiqMode,		0x11	@ Enter FIQ mode
+.equ	MaskUsrMode,		0x10	@ Enter User mode
+
+@ Masks for CPSR fields
+.equ	MaskNflag,		0x80000000
+.equ	MaskZflag,		0x40000000
+.equ	MaskCflag,		0x20000000
+.equ	MaskVflag,		0x10000000
+
+@ Masks and machine codes for different instructions
+.equ	SWI_Mask,			0x0F000000
+.equ	BrInstMask,			0x0E000000
+.equ	BrInst,				0x0A000000
+.equ	LdmInstMask,			0x0E100000
+.equ	LdmInst,			0x08100000
+.equ	DprsInstMask,			0x0E000090
+.equ	DprsInst,			0x00000010
+.equ	MiscInstMask,			0x0F900000
+.equ	MiscInst,			0x01000000
+.equ	LroInstMask,			0x0E100010
+.equ	LroInst,			0x06100000
+.equ	DpisInstMask,			0x0E000010
+.equ	Misc2InstMask,			0x0F900010
+.equ	Misc2Inst,			0x01000000
+.equ	DpiInstMask,			0x0E000000
+.equ	DpiInst,			0x02000000
+.equ	LimInstMask,			0x0E100000
+.equ	LimInst,			0x04100000
+.equ	MaskLdmPcField,			0x00008000
+.equ	MaskRnField,			0x000F0000
+.equ	MaskRdField,			0x0000F000
+.equ	MaskRsField,			0x00000F00
+.equ	MaskRmField,			0x0000000F
+.equ	MaskR0asRd,			0x00000000
+.equ	MaskR1asRn,			0x00010000
+.equ	MaskR2asRm,			0x00000002
+.equ	MaskR3asRs,			0x00000300
+
+.equ	Cond_Mask,			0xF0000000
+.equ	Alw_Exec_Inst,			0xE0000000
+.equ	Code_OSExit,			0x0F000011
+.equ	Code_OSWriteStr,		0x0F000002
+.equ	Code_OSWriteChar,		0x0F000000
+.equ	Code_OSGetChar,			0x0F000004
+.equ	Code_OSEnterOS,			0x0F000016
+.equ	Code_OSLeaveOS,			0x0F00007C
+.equ	Code_OSClaimDeviceVector,	0x0F00004B
+.equ	Code_OSReleaseDeviceVector,	0x0F00004C
+.equ	BrkpInst,			0xE1200071
+
+.equ	Num_Loop,			1000
+
+/* ExecType Values */
+.equ	 Stop_Ex,			0x0000
+.equ	 Run_Go,			0x0001
+.equ	 Run_Tr,			0x0002
+.equ	 Run_Gt,			0x0003
+.equ	 Run_Gd,			0x0004
+.equ	 Run_Gf,			0x0010
+.equ	 Prg_End,			0x0100
+.equ	 SWI_WrC,			0x0200
+.equ	 SWI_WrL,			0x0300
+.equ	 SWI_EnOS,			0x0400
+.equ	 SWI_LeOS,			0x0500
+.equ	 SWI_GeC,			0x0600
+.equ	 Stop_Br,			0x1000
+.equ	 Ex_DAb,			0x1100
+.equ	 Ex_IIns,			0x1200
+.equ	 Ex_PAb,			0x1300
+.equ	 Ex_OoR,			0x1400
+.equ	 Ex_DnA,			0x1500
+.equ	 Ex_DnR,			0x1600
+.equ	 StateByteMask,			0xFF00
+.equ	 StateTypeMask,			0xF000
+.equ	 CmdByteMask,			0x00FF
+.equ	 SWI_Ex_Mask,			0x0F00
+.equ	 Skip_Inst,			0x10000
+

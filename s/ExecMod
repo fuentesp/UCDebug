@@ -22,6 +22,8 @@
 @ You should have received a copy of the GNU General Public License
 @ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+.include  "s/Constants"
+
 .global   CodeExecute
 .extern   CurContext
 .extern   BrkPtList
@@ -41,21 +43,7 @@
 .global   drivertable
 .global   DbgControllerMask
 .global   UsrControllerMask
-.global   ControllerBaseAddress
-
-.equ SWI_Mask,    0x0F000000
-.equ Cond_Mask,   0xF0000000
-.equ Code_OSExit, 0x0F000011
-.equ Code_OSWriteStr, 0x0F000002
-.equ Code_OSWriteChar, 0x0F000000
-.equ Code_OSGetChar, 0x0F000004
-.equ Code_OSEnterOS, 0x0F000016
-.equ Code_OSLeaveOS, 0x0F00007C
-.equ Code_OSClaimDeviceVector, 0x0F00004B
-.equ Code_OSReleaseDeviceVector, 0x0F00004C
-.equ Num_Loop,    1000
-.equ BrkpInst,    0xE1200071
-
+.extern   ControllerBaseAddress
 
 .data
 
@@ -71,7 +59,6 @@ ReturnHandler: .space  4
 StackHandler:  .space  4
 PrefetchAddress:	.word 0
 PendingGetChar:         .word 0
-ControllerBaseAddress:  .word 0
 
 immediatebreakpointnumber: .word 0
 immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
@@ -102,37 +89,37 @@ ldr r1,[sp]
 str r1,[r0] @ write program r0 in its place
 add sp,sp,#4
 mrs r1,CPSR @ write debugger CPSR
-str r1,[r0,#64]
-swi 0x16 @ OS_EnterOS (enter SVC mode)
-str sp, [r0, #200] @ write debugger SVC sp
-str lr, [r0, #204] @ write debugger SVC lr
+str r1,[r0,#OffCpsr]
+swi OS_EnterOS 		@ enter SVC mode
+str sp, [r0, #OffSvcRegs] @ write debugger SVC sp
+str lr, [r0, #OffSvcRegs+4] @ write debugger SVC lr
 mrs r2, SPSR
-str r2, [r0, #208] @ write debugger SVC spsr
+str r2, [r0, #OffSvcRegs+8] @ write debugger SVC spsr
 mrs r1, cpsr
 bic r1, r1, #0x1
 msr cpsr, r1 @ switch from SVC to IRQ mode
-str sp, [r0, #236] @ write IRQ sp
-str lr, [r0, #240] @ write IRQ lr
+str sp, [r0, #OffIrqRegs] @ write IRQ sp
+str lr, [r0, #OffIrqRegs+4] @ write IRQ lr
 mrs r2, spsr
-str r2, [r0, #244] @ write IRQ SPSR in its place
+str r2, [r0, #OffIrqRegs+8] @ write IRQ SPSR in its place
 orr r1, r1, #0x5
 msr cpsr, r1 @ switch from IRQ to Abt mode
-str sp, [r0, #212] @ write abort sp
-str lr, [r0, #216] @ write abort lr
+str sp, [r0, #OffAbtRegs] @ write abort sp
+str lr, [r0, #OffAbtRegs+4] @ write abort lr
 mrs r2, spsr
-str r2, [r0, #220] @ write abort SPSR
+str r2, [r0, #OffAbtRegs+8] @ write abort SPSR
 bic r1, r1, #0x6
 msr cpsr, r1 @ switch from Abt to FIQ mode
-add r2, r0, #248
+add r2, r0, #OffFiqRegs
 stm r2, {r8-r14} @ write FIQ specific regs
 mrs r2, spsr
-str r2, [r0, #276] @ write FIQ SPSR in its place
+str r2, [r0, #OffFiqRegs+7*4] @ write FIQ SPSR in its place
 orr r1, r1, #0xA
 msr cpsr, r1 @ switch from FIQ to Und mode
-str sp, [r0, #224] @ write undefined sp
-str lr, [r0, #228] @ write undefined lr
+str sp, [r0, #OffUndRegs] @ write undefined sp
+str lr, [r0, #OffUndRegs+4] @ write undefined lr
 mrs r2, spsr
-str r2, [r0, #232] @ write undefined SPSR in its place
+str r2, [r0, #OffUndRegs+8] @ write undefined SPSR in its place
 orr r1, r1, #0x1F
 msr cpsr, r1 @ switch to Sys mode
 str sp, [r0, #52] @ write user sp
@@ -159,7 +146,7 @@ Another_inst:
 bl CheckInst
 tst r0, #0xFF00         @ Check State byte of ExecType
 bne End_CodeExec
-tst r0, #0x10000	@ Instruction is not run, but dbg does not return to GUI
+tst r0, #Skip_Inst	@ Instruction is not run, but dbg does not return to GUI
 bne checkreturn
 
 @
@@ -199,39 +186,39 @@ ldr r0,=ourregisters
 mrs r1, CPSR
 bic r1, r1, #0xC	@ switch to SVC mode
 msr cpsr, r1
-ldr sp, [r0, #200] @ load debugger SVC sp
-ldr lr, [r0, #204] @ load debugger SVC lr
-ldr r2, [r0, #208]
+ldr sp, [r0, #OffSvcRegs] @ load debugger SVC sp
+ldr lr, [r0, #OffSvcRegs+4] @ load debugger SVC lr
+ldr r2, [r0, #OffSvcRegs+8]
 msr spsr, r2       @ load debugger SVC spsr
 bic r1, r1, #0x1
 msr cpsr, r1 @ switch from SVC to IRQ mode
-ldr sp, [r0, #236] @ load IRQ sp
-ldr lr, [r0, #240] @ load IRQ lr
-ldr r2, [r0, #244]
+ldr sp, [r0, #OffIrqRegs] @ load IRQ sp
+ldr lr, [r0, #OffIrqRegs+4] @ load IRQ lr
+ldr r2, [r0, #OffIrqRegs+8]
 msr spsr, r2       @ load IRQ SPSR
 orr r1, r1, #0x5
 msr cpsr, r1 @ switch from IRQ to Abt mode
-ldr sp, [r0, #212] @ load abort sp
-ldr lr, [r0, #216] @ load abort lr
-ldr r2, [r0, #220]
+ldr sp, [r0, #OffAbtRegs] @ load abort sp
+ldr lr, [r0, #OffAbtRegs+4] @ load abort lr
+ldr r2, [r0, #OffAbtRegs+8]
 msr spsr, r2       @ load abort SPSR
 bic r1, r1, #0x6
 msr cpsr, r1 @ switch from Abt to FIQ mode
-add r2, r0, #248
+add r2, r0, #OffFiqRegs
 ldm r2, {r8-r14}   @ load FIQ specific regs
-ldr r2, [r0, #276]
+ldr r2, [r0, #OffFiqRegs+7*4]
 msr spsr, r2       @ load FIQ SPSR
 orr r1, r1, #0xA
 msr cpsr, r1 @ switch from FIQ to Und mode
-ldr sp, [r0, #224] @ load undefined sp
-ldr lr, [r0, #228] @ load undefined lr
-ldr r2, [r0, #232]
+ldr sp, [r0, #OffUndRegs] @ load undefined sp
+ldr lr, [r0, #OffUndRegs+4] @ load undefined lr
+ldr r2, [r0, #OffUndRegs+8]
 msr spsr, r2       @ load undefined SPSR
 orr r1, r1, #0x1F
 msr cpsr, r1 @ switch to Sys mode
 add r1, r0, #4
 ldm r1, {r1-r14}  @ recover general purpose regs (previous usr mode is unknown)
-ldr r1,[r0,#64]  @ CPSR
+ldr r1,[r0,#OffCpsr]  @ CPSR
 msr CPSR, r1
 ldm r0, {r0-r12}  @ PC is not recovered
 
@@ -255,7 +242,7 @@ bl EnableFPU
 ldr r1,=CurContext
 ldr r0,[r1,#60]
 ldr r0,[r0] @ prefetch the instruction
-ldr r0,[r1,#212]
+ldr r0,[r1,#OffAbtRegs]
 ldr r0,[r0,#-4] @prefetch the data abort stack of the program
 
 @ Prefetch a given address that has caused a page error
@@ -272,20 +259,20 @@ mov r0,#0x01 @ claim + UNdefined instruction
 orr r0,r0,#0x100
 ldr r1,=UndefinedInstructHandler
 mov r2,#0
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 @remember to release r1
 ldr r0,=HandUndRel
 str r1,[r0]
 
 mrs r1, cpsr
-orr r1, r1, #0x180	@ Disable imprecise aborts and interrupts
+orr r1, r1, #MaskDisIRQs	@ Disable imprecise aborts and interrupts
 msr cpsr, r1		@ to avoid inconsistent states
 
 mov r0,#0x03 @ claim + prefetch abort
 orr r0,r0,#0x100
 ldr r1,=PrefetchAbortHandler
 mov r2,#0
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 @remember to release r1
 ldr r0,=HandPreRel
 str r1,[r0]
@@ -294,7 +281,7 @@ mov r0,#0x04 @ claim + Data abort
 orr r0,r0,#0x100
 ldr r1,=DataAbortHandler
 mov r2,#0
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 @remember to release r1
 ldr r0,=HandDatRel
 str r1,[r0]
@@ -303,7 +290,7 @@ mov r0, #0x06 	@ claim + IRQ
 orr r0, r0, #0x100
 ldr r1, =IRQHandler
 mov r2, #0
-swi 0x69 @ OS_ClaimProcessorVector
+swi OS_ClaimProcessorVector
 ldr r0, =HandIRQRel	@ remember to release r1
 str r1, [r0]
 
@@ -330,7 +317,6 @@ str r3, [r5], #4
 
 @
 @ Load context from all modes
-@ TODO: define sp for all modes, to prevent errors
 @
 ldr r0,=CurContext
 add r1, r0, #68
@@ -340,34 +326,34 @@ vmsr FPSCR, r1 @ load FPSCR
 mrs r1, cpsr
 bic r1, r1, #0xC
 msr cpsr, r1 @ switch from Sys to SVC mode
-ldr sp, [r0, #200] @ load svc sp
-ldr lr, [r0, #204] @ load svc lr
-ldr r2, [r0, #208]
+ldr sp, [r0, #OffSvcRegs] @ load svc sp
+ldr lr, [r0, #OffSvcRegs+4] @ load svc lr
+ldr r2, [r0, #OffSvcRegs+8]
 msr spsr, r2 @ load svc SPSR
 mrs r1, cpsr
 orr r1, r1, #0x4
 msr cpsr, r1 @ switch from SVC to Abt mode
-ldr sp, [r0, #212] @ load abt sp
-ldr lr, [r0, #216] @ load abt lr
-ldr r2, [r0, #220]
+ldr sp, [r0, #OffAbtRegs] @ load abt sp
+ldr lr, [r0, #OffAbtRegs+4] @ load abt lr
+ldr r2, [r0, #OffAbtRegs+8]
 msr spsr, r2 @ load abt SPSR
 bic r1, r1, #0x5
 msr cpsr, r1 @ switch from Abt to IRQ mode
-ldr sp, [r0, #236] @ load IRQ sp
-ldr lr, [r0, #240] @ load IRQ lr
-ldr r2, [r0, #244]
+ldr sp, [r0, #OffIrqRegs] @ load IRQ sp
+ldr lr, [r0, #OffIrqRegs+4] @ load IRQ lr
+ldr r2, [r0, #OffIrqRegs+8]
 msr spsr, r2 @ load IRQ SPSR
 orr r1, r1, #0x9
 msr cpsr, r1 @ switch from IRQ to Und mode
-ldr sp, [r0, #224] @ load Und sp
-ldr lr, [r0, #228] @ load Und lr
-ldr r2, [r0, #232]
+ldr sp, [r0, #OffUndRegs] @ load Und sp
+ldr lr, [r0, #OffUndRegs+4] @ load Und lr
+ldr r2, [r0, #OffUndRegs+8]
 msr spsr, r2 @ load Und SPSR
 bic r1, r1, #0xA
 msr cpsr, r1 @ switch from Und to FIQ mode
-add r2, r0, #248
+add r2, r0, #OffFiqRegs
 ldm r2, {r8-r14} @ load FIQ specific regs
-ldr r2, [r0, #276]
+ldr r2, [r0, #OffFiqRegs+7*4]
 msr spsr, r2 @ load FIQ SPSR
 orr r1, r1, #0x1F
 msr cpsr, r1 @ switch to system mode to access remaining user regs
@@ -378,7 +364,7 @@ stm r1, {r2-r5}	@ store them away in an aux var
 add r2, r0, #8
 ldm r2, {r2-r14} @ load regs from usr mode (to update sp and lr, in case
                  @ the user program was left in a different user mode)
-ldr r2,[r0,#64]
+ldr r2,[r0,#OffCpsr]
 msr CPSR, r2		@ load usr CPSR
 ldm r1, {r0-r2, pc}	@ jump to user program
 
@@ -392,10 +378,10 @@ ldm r1, {r0-r2, pc}	@ jump to user program
 @	1 for TRUE.
 CheckInstCond:
 stmdb sp!, {r4-r5, lr}
-and r2, r1, #0x80000000	@ N flag
-and r3, r1, #0x40000000	@ Z flag
-and r4, r1, #0x20000000	@ C flag
-and r5, r1, #0x10000000	@ V flag
+and r2, r1, #MaskNflag	@ N flag
+and r3, r1, #MaskZflag	@ Z flag
+and r4, r1, #MaskCflag	@ C flag
+and r5, r1, #MaskVflag	@ V flag
 
 ands r1, r0, #0xE       @ If the 3 highest bits of the cond are 0, it depends
 bne condC		@ on the Z flag
@@ -484,7 +470,7 @@ bl validMemAddressRange	@ before analysing the instruction, check if the address
 cmp r0, #0		@ is within the valid range
 bne load_instruction	@ valid address, load the instruction
 ldr r1,=ExecType
-mov r0, #0x1400 	@ mark an Out-of-Range exception, so the instruction is not run
+mov r0, #Ex_OoR 	@ mark an Out-of-Range exception, so the instruction is not run
 str r0,[r1]
 b End_checkinstr
 
@@ -499,12 +485,12 @@ bne End_checkinstr
 
 @ Then check if the exec is inconditional or not
 and r1, r4, #Cond_Mask
-cmp r1, #0xE0000000
+cmp r1, #Alw_Exec_Inst
 beq checkinstr1	@ Inconditional execution, check if it is one of the captured SWIs
 
 @ Conditional execution, verify if it will execute
 lsr r0, r1, #28         @ Load condition field
-ldr r1, [r5,#64]	@ Load CPSR
+ldr r1, [r5,#OffCpsr]	@ Load CPSR
 bl CheckInstCond
 cmp r0, #0
 beq End_checkinstr	@ It the instruction will not be executed, skip checkings
@@ -517,7 +503,7 @@ bne Else_checkinstr1
 @ change ExecType
 ldr r1,=ExecType
 ldr r0,[r1]
-add r0, r0, #0x0100
+add r0, r0, #Prg_End
 str r0,[r1] @ Change ExecType to Prg_End
 b Default_checkinstr
 
@@ -528,7 +514,7 @@ bne Else_checkinstr2
 @ change ExecType
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x0300
+add r0, r0, #SWI_WrL
 str r0, [r1]
 b Default_checkinstr
 
@@ -538,7 +524,7 @@ cmp r4,r1
 bne Else_checkinstr3
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x0200
+add r0, r0, #SWI_WrC
 str r0, [r1]
 b Default_checkinstr
 
@@ -553,18 +539,18 @@ bne RunGetChar		@ Check if getChar has been exec'd
 str r0, [r0]		@ Store in PendingGetChar its own address: anything non-zero
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x0600
+add r0, r0, #SWI_GeC
 str r0, [r1]		@ Update ExecType, to ensure it goes to GUI
 b End_checkinstr
 RunGetChar:
 mov r1, #0
 str r1, [r0]		@ reset PendingGetChar var
-swi 0x4
+swi OS_ReadC
 ldr r1, =CurContext
 str r0, [r1]		@ store in r0 from usr context the char read in the SWI
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 
@@ -572,16 +558,16 @@ Else_checkinstr4:
 ldr r1, =Code_OSEnterOS
 cmp r4,r1
 bne Else_checkinstr5
-ldr r1,[r5,#64]		@ CPSR
-str r1,[r5,#208]        @ Store previous CPSR in svc SPSR
-bic r1,r1,#0x1F
-orr r1,r1,#0x13
-str r1,[r5,#64]		@ Update CPSR with the SVC user mode
-ldr r1,[r5,#60]
-str r1,[r5,#204]        @ Store previous PC in LR
+ldr r1, [r5, #OffCpsr]		@ CPSR
+str r1, [r5, #OffSvcRegs+8]	@ Store previous CPSR in svc SPSR
+bic r1, r1, #MaskSysMode
+orr r1, r1, #MaskSvcMode
+str r1, [r5, #OffCpsr]		@ Update CPSR with the SVC user mode
+ldr r1, [r5, #60]
+str r1, [r5, #OffSvcRegs+4]	@ Store previous PC in LR
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+add r0, r0, #Skip_Inst		@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 
@@ -589,12 +575,12 @@ Else_checkinstr5:
 ldr r1, =Code_OSLeaveOS
 cmp r4,r1
 bne Else_checkinstr6
-ldr r1,[r5,#64] 	@CPSR
-bic r1,r1,#0xF
-str r1,[r5,#64]		@Update CPSR with User mode
+ldr r1,[r5,#OffCpsr]	 	@CPSR
+bic r1,r1,#MaskSysMode-MaskUsrMode
+str r1,[r5,#OffCpsr]		@Update CPSR with User mode
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+add r0, r0, #Skip_Inst		@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 
@@ -633,13 +619,13 @@ ldm r5, {r0-r2}		@ load user regs r0-r2 (device number, driver @, R12 val)
 stm r3, {r0-r2}		@ store values in driver table entry
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 NotRunClaimDev:
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x1500	@ Throw error: this device cannot be used
+add r0, r0, #Ex_DnA	@ Throw error: this device cannot be used (Device Not Available)
 str r0, [r1]
 b End_checkinstr
 
@@ -699,13 +685,13 @@ str r3, [r1]		@ remove this device number to interrupt mask
 
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x10000	@ Update ExecType: it should skip going to the GUI
+add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
 str r0, [r1]
 b Default_checkinstr
 NotSetDev:
 ldr r1, =ExecType
 ldr r0, [r1]
-add r0, r0, #0x1600	@ Throw error for Device not Released
+add r0, r0, #Ex_DnR	@ Throw error for Device not Released
 str r0, [r1]
 b End_checkinstr
 
@@ -730,17 +716,17 @@ ldmia sp!, {r4, r5, pc}
 ReturnCLI:
 ldr r1,=ExecType
 ldr r0,[r1]
-bic r0, #0x10000	@ clear bit to jump current instruction
+bic r0, #Skip_Inst	@ clear bit to jump current instruction
 str r0, [r1]
-cmp r0,#1
+cmp r0, #Run_Go
 beq modeGO
-cmp r0,#2
+cmp r0, #Run_Tr
 beq modeTR
-cmp r0,#3
+cmp r0, #Run_Gt
 beq modeGT
-cmp r0,#4
+cmp r0, #Run_Gd
 beq modeGD
-cmp r0, #0x10
+cmp r0, #Run_Gf
 beq modeGF
 b   No_execute
 
@@ -756,18 +742,17 @@ ldr r0, =BrkPtList     @ Pointer to BreakPoints List
 loop_GO:
    cmp r6,#0
    beq End_BrkList
-   ldr r1,[r0]
+   ldr r1,[r0], #4
    cmp r5,r1
    bne Next_Brk
    ldr r1,=ExecType
    ldr r0, [r1]
-   add r0, r0, #0x1000   @ Write the Stop_Br constant to warn of a reached breakpoint
+   add r0, r0, #Stop_Br		@ Write the Stop_Br constant to warn of a reached breakpoint
    str r0,[r1]
    mov r0, #0
    b End_RetCLI
 Next_Brk:
    sub r6, r6, #1
-   add r0, r0, #4
    b   loop_GO
 End_BrkList:
 @
@@ -810,7 +795,7 @@ cmp r5,r1
 bne No_BrkT
 ldr r1,=ExecType
 ldr r0, [r1]
-add r0, r0, #0x1000   @ Write the Stop_Br constant to warn the breakpoint has been reached
+add r0, r0, #Stop_Br		@ Warn the breakpoint has been reached
 str r0,[r1]
 mov r0, #0
 b End_RetCLI
@@ -855,23 +840,22 @@ ldr r0, =BrkPtList		@ Pointer to BreakPoints List
 loop_GF:
    cmp r6,#0
    beq Execute
-   ldr r1,[r0]
+   ldr r1,[r0], #4
    cmp r5,r1
    beq end_loop_GF
    sub r6, r6, #1
-   add r0, r0, #4
    b   loop_GF
 end_loop_GF:
    ldr r1,=ExecType
    ldr r0, [r1]
-   add r0, r0, #0x1000   	@ Write the Stop_Br constant to warn of a
+   add r0, r0, #Stop_Br		@ Write the Stop_Br constant to warn of a
    str r0,[r1]			@ reached breakpoint
 
 No_execute:
-mov r0,#0
+mov r0,	#Stop_Ex
 b End_RetCLI
 Execute:
-mov r0,#0xFF
+mov r0, #0xFF
 End_RetCLI:
 mov pc,lr
 
@@ -894,19 +878,19 @@ ldr r5, [r4]		@ instruction to be executed
 
 @ Check if instruction will be executed; otherwise, next inst is PC+4
 and r0, r5, #Cond_Mask		@ get condition field from the instruction
-cmp r0, #0xE0000000
+cmp r0, #Alw_Exec_Inst
 beq sib_checkbranch		@ inconditional exec, check type of inst
 
 				@ conditional execution
 lsr r0, r0, #28			@ place condition field at the least significant bits
-ldr r1, [r6, #64]		@ load CPSR from CurContext
+ldr r1, [r6, #OffCpsr]		@ load CPSR from CurContext
 bl CheckInstCond
 cmp r0, #0
 beq sib_nextinst		@ the instruction will not be exec'ed, next @ is PC+4
 
 sib_checkbranch:		@ check if the instruction is a B/BL
-and r0, r5, #0x0E000000		@ mask to get instruction type
-cmp r0, #0x0A000000
+and r0, r5, #BrInstMask		@ mask to get instruction type
+cmp r0, #BrInst
 bne sib_checkldm
 bic r0, r5, #0xFF000000		@ get 24-bit immediate field
 tst r0, #0x00800000		@ if the most significant bit is 1,
@@ -916,10 +900,10 @@ add r0, r0, #8			@ + 8
 b sib_setbrk
 
 sib_checkldm:			@ check if the instruction is a LDM
-and r0, r5, #0x0E100000		@ mask to get instruction type
-cmp r0, #0x08100000             @ check if the instruction is a LDM
+and r0, r5, #LdmInstMask	@ mask to get instruction type
+cmp r0, #LdmInst		@ check if the instruction is a LDM
 bne sib_checkdprs
-ands r0, r5, #0x8000		@ check if the PC is updated in the LDM
+ands r0, r5, #MaskLdmPcField	@ check if the PC is updated in the LDM
 beq sib_nextinst		@ the PC will not be updated, next @ is PC+4
 ldr r0, =0x7FFF			@ mask to get the number of regs loaded, including PC
 and r0, r5, r0			@ list of regs loaded (1 bit per reg)
@@ -929,7 +913,7 @@ ands r2, r0, #1			@ test least significant bit
 addne r1, r1, #1		@ if bit=1, increase count
 lsrs r0, r0, #1			@ discard that bit
 bne sib_loop_ldm
-and r0, r5, #0xF0000		@ get field 'register with the base address'
+and r0, r5, #MaskRnField	@ get field 'register with the base address'
 ldr r0, [r6, r0, LSR #14]	@ base address=mem(CurContext+reg with base @ * 4)
 and r2, r5, #0x01800000		@ get addressing mode field from the instruction
 lsr r2, r2, #23
@@ -945,72 +929,72 @@ ldreq r0, [r0]			@ DA => base address
 b sib_setbrk
 
 sib_checkdprs:          	@ check if it is a data processing register shift
-ldr r0, =0x0E000090     	@ mask to get instruction type
+ldr r0, =DprsInstMask		@ mask to get instruction type
 and r0, r5, r0
-cmp r0, #0x00000010
+cmp r0, #DprsInst
 bne sib_checkdpis
-and r0, r5, #0x0F900000		@ mask to see if it is a misc instr
-cmp r0, #0x01000000		@ check if misc instr
+and r0, r5, #MiscInstMask	@ mask to see if it is a misc instr
+cmp r0, #MiscInst		@ check if misc instr
 beq sib_nextinst
-and r0, r5, #0xF000		@ check if the dest reg is PC
-cmp r0, #0xF000
+and r0, r5, #MaskRdField	@ check if the dest reg is PC
+cmp r0, #MaskRdField
 bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =0xF00FFF0F		@ mask to clear 'cond', 'Rd', 'Rn', 'Rm' and 'Rs' fields
-bic r7, r5, r0
-ldr r0, =0xE0010302		@ set cond=AL, Rd=r0, Rn=r1, Rm=r2, Rs=r3
-orr r7, r7, r0
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRsField+MaskRmField
+bic r7, r5, r0			@ Clear 'cond', 'Rd', 'Rn', 'Rm' and 'Rs' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm+MaskR3asRs
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2, Rs=r3
 b sib_grfi_arg3
 
 sib_checkdpis:          	@ check if it is a load with reg offset or
 				@ a data processing immediate shift
-ldr r0, =0x0E100010		@ mask to get instruction type
+ldr r0, =LroInstMask		@ mask to get instruction type
 and r0, r5, r0
-cmp r0, #0x06100000		@ check if load with reg offset
-ldrne r0, =0x0E000010		@ mask to get instruction type
+cmp r0, #LroInst		@ check if load with reg offset
+ldrne r0, =DpisInstMask		@ mask to get instruction type
 andnes r0, r5, r0		@ check if data processing immediate shift
 bne sib_checkdpi
-ldr r0, =0x0F900010		@ mask to see if a misc instr
+ldr r0, =Misc2InstMask		@ mask to see if a misc instr
 and r0, r5, r0
-cmp r0, #0x01000000		@ check if it is a misc instr
+cmp r0, #Misc2Inst		@ check if it is a misc instr
 beq sib_nextinst
-and r0, r5, #0xF000		@ check if the dest reg is PC
-cmp r0, #0xF000
+and r0, r5, #MaskRdField	@ check if the dest reg is PC
+cmp r0, #MaskRdField
 bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =0xF00FF00F		@ mask to clear 'cond', 'Rd', 'Rn', and 'Rm' fields
-bic r7, r5, r0
-ldr r0, =0xE0010002		@ set cond=AL, Rd=r0, Rn=r1, Rm=r2
-orr r7, r7, r0
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRmField
+bic r7, r5, r0			@ mask to clear 'cond', 'Rd', 'Rn', and 'Rm' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2
 b sib_grfi_arg2
 
-sib_checkdpi:           	@ check if instruction is a data pocessing immediate
+sib_checkdpi:           	@ check if instruction is a data processing immediate
 				@ or a load with immediate offset
-and r0, r5, #0x0E000000		@ mask to get instruction type
-cmp r0, #0x02000000             @ check if data processing immediate
-andne r0, r5, #0x0E100000
-cmpne r0, #0x04100000		@ check if load immediate offset
+and r0, r5, #DpiInstMask	@ mask to get instruction type
+cmp r0, #DpiInst		@ check if data processing immediate
+andne r0, r5, #LimInstMask
+cmpne r0, #LimInst		@ check if load immediate offset
 bne sib_nextinst		@ none of the instructions that affect PC, next @ is PC+4
-and r0, r5, #0xF000		@ check if the dest reg is PC
-cmp r0, #0xF000
+and r0, r5, #MaskRdField		@ check if the dest reg is PC
+cmp r0, #MaskRdField
 bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =0xF00FF000		@ mask to clear 'cond', 'Rd', and 'Rn' fields
-bic r7, r5, r0
-ldr r0, =0xE0010000		@ set cond=AL, Rd=r0, Rn=r1
-orr r7, r7, r0
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField
+bic r7, r5, r0			@ mask to clear 'cond', 'Rd', and 'Rn' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1
 b sib_grfi_arg1
 
 sib_grfi_arg3:			@ load in r3 the value of the Rs from the inst
-and r3, r5, #0xF00		@ get Rs
+and r3, r5, #MaskRsField	@ get Rs
 ldr r3, [r6, r3, LSR #6]	@ r3 = mem(CurContext + Rs * 4)
 sib_grfi_arg2:			@ load in r2 the value of the Rm from the inst
-and r2, r5, #0xF		@ get Rm
+and r2, r5, #MaskRmField	@ get Rm
 ldr r2, [r6, r2, LSL #2]	@ r2 = mem(CurContext + Rm * 4)
 sib_grfi_arg1:
-and r1, r5, #0xF0000		@ get Rn
+and r1, r5, #MaskRnField	@ get Rn
 ldr r1, [r6, r1, LSR #14]	@ r1 = mem(CurContext + Rn * 4)
 ldr r0, =GetResultFromInst
 str r7, [r0]			@ store instruction to exec it
-mov r0,#0 			@ flags, 0 for all memory
-swi 0x6E @ OS_SynchronizeCodeAreas
+mov r0, #0 			@ flags, 0 for all memory
+swi OS_SynchronizeCodeAreas
 bl GetResultFromInst
 b sib_setbrk			@ set the breakpoint at the future PC
 
@@ -1035,7 +1019,7 @@ ldr r1, =immediatebreakpointnumber
 str r0, [r1]			@ store the breakpoint counter
 
 mov r0,#0 @ flags, 0 for all memory
-swi 0x6E @ OS_SynchronizeCodeAreas
+swi OS_SynchronizeCodeAreas
 sib_end:
 ldmia sp!, {r4-r7, pc}
 
@@ -1141,7 +1125,7 @@ bne sfb_loop2
 
 sfb_return:
 mov r0,#0 @ flags, 0 for all memory
-swi 0x6E @ OS_SynchronizeCodeAreas
+swi OS_SynchronizeCodeAreas
 
 ldmia sp!, {r4-r6, pc}
 
@@ -1160,7 +1144,7 @@ str r2,[r1]
 subs r0,r0,#1
 bgt clearimmediatebreakpoints_loop
 mov r0,#0 @ all memory
-swi 0x6E @ OS_SynchronizeCodeAreas
+swi OS_SynchronizeCodeAreas
 mov pc,lr
 
 .end

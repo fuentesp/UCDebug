@@ -22,6 +22,8 @@
 @ You should have received a copy of the GNU General Public License
 @ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+.include  "s/Constants"
+
 .global   EnableFPU
 .global   DefCurCtx
 .global   DefStackCtx
@@ -30,6 +32,7 @@
 .extern   DebugAreaEnd
 .global   loadAuxCurContext
 .global   InitializeDbgKernel
+.extern   ControllerBaseAddress
 
 .data
 
@@ -63,47 +66,47 @@ stm r0,{r0-r15}
 ldr r1,[sp], #4
 str r1,[r0] @ write program r0 in its place
 mrs r1,CPSR
-str r1,[r0,#64]   @ CPSR of the user program
-add r2, r0, #68
+str r1,[r0, #OffCpsr]   @ CPSR of the user program
+add r2, r0, #OffFPRegs
 vstm r2, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR
-str r3, [r2, #128] @ write FPSCR
+str r3, [r0, #OffFpscr] @ write FPSCR
 ands r2, r1, #0xF	@ Mask to select usr mode
-swieq 0x16	        @ If in user mode, switch to SVC
+swieq OS_EnterOS        @ If in user mode, switch to SVC
 bic r1, r1, #0xF        @ Regardless of previous mode,
 orr r1, r1, #0x3	@ switch to SVC mode
 msr CPSR, r1
-str lr, [r0, #204]	@ SVC lr
+str lr, [r0, #OffSvcRegs+4]	@ SVC lr
 mrs r2, SPSR
-str r2, [r0, #208]	@ SVC spsr
+str r2, [r0, #OffSvcRegs+8]	@ SVC spsr
 bic r1, r1, #0x4	@ Switch from SVC to Abt mode
 msr CPSR, r1
-str lr, [r0, #216]	@ Abt lr
+str lr, [r0, #OffAbtRegs+4]	@ Abt lr
 mrs r2, SPSR
-str r2, [r0, #220]	@ Abt spsr
+str r2, [r0, #OffAbtRegs+8]	@ Abt spsr
 bic r1, r1, #0xF
 orr r1, r1, #0xB	@ Switch from Abt to Und mode
 msr CPSR, r1
-str lr, [r0, #228]	@ Und lr
+str lr, [r0, #OffUndRegs+4]	@ Und lr
 mrs r2, SPSR
-str r2, [r0, #232]	@ Und spsr
+str r2, [r0, #OffUndRegs+8]	@ Und spsr
 bic r1, r1, #0x9
 msr CPSR, r1		@ Switch from Und to IRQ mode
-str lr, [r0, #240]	@ IRQ lr
+str lr, [r0, #OffIrqRegs+4]	@ IRQ lr
 mrs r2, SPSR
-str r2, [r0, #244]	@ IRQ spsr
+str r2, [r0, #OffIrqRegs+8]	@ IRQ spsr
 bic r1, r1, #0xF
 orr r1, r1, #0x1	@ Switch to FIQ mode
 msr CPSR, r1
-add r2, r0, #248
+add r2, r0, #OffFiqRegs
 stm r2, {r8-r14}	@ FIQ regs
 mrs r2, SPSR
-str r2, [r0, #276]	@ FIQ spsr
+str r2, [r0, #OffFiqRegs+7*4]	@ FIQ spsr
 orr r1, r1, #0xF
 msr CPSR, r1		@ Switch to SYS mode
 str lr, [r0, #56]	@ Usr lr
 
-ldr r1,[r0,#64]
+ldr r1,[r0,#OffCpsr]
 msr CPSR, r1		@ Switch back to original mode
 
 bl DefStackCtx
@@ -123,16 +126,16 @@ ldr r0,=CurContext
 ldr r3, =DebugAreaEnd
 ldr r3, [r3]            @ To properly set stack, get address of end of debugarea
 bic r3, r3, #0x3        @ Ensure the address is aligned to word
-str r3, [r0, #200]	@ SVC sp
+str r3, [r0, #OffSvcRegs]	@ SVC sp
 sub r3, r3, #0x200      @ (stack from SVC spans 512Bytes)
-str r3, [r0, #212]	@ Abt sp
+str r3, [r0, #OffAbtRegs]	@ Abt sp
 sub r3, r3, #0x200      @ (stack from Abt spans 512Bytes)
-str r3, [r0, #224]	@ Und sp
+str r3, [r0, #OffUndRegs]	@ Und sp
 sub r3, r3, #0x200      @ (stack from Und spans 512Bytes)
 
-str r3, [r0, #236]	@ IRQ sp
+str r3, [r0, #OffIrqRegs]	@ IRQ sp
 sub r3, r3, #0x200      @ (stack from IRQ spans 512Bytes)
-str r3, [r0, #268]      @ FIQ sp
+str r3, [r0, #OffFiqRegs+5*4]      @ FIQ sp
 sub r3, r3, #0x200      @ (stack from FIQ spans 512Bytes)
 str r3, [r0, #52]       @ Usr sp (will later be updated, when loading program)
 
@@ -165,7 +168,7 @@ stm r2, {r3-r4}  		@ Update sp & lr in current user mode
 str r5, [r0, #68]		@ Update spsr in current user mode
 cmp r6, #0x1			@ If FIQ mode, more regs need to be loaded
 bne lACC_end
-add r2, r1, #248
+add r2, r1, #OffFiqRegs
 ldm r2, {r3-r7}			@ Get FIQ regs
 add r2, r0, #32
 stm r2, {r3-r7}			@ Update regs r0-r12 in current user mode
@@ -173,10 +176,23 @@ lACC_end:
 ldmia sp!, {r0-r12, pc}
 
 InitializeDbgKernel:
+@ Determine underlying chipset, and load one base interrupt register
+@ address or another, depending on which chipset is used.
+swi OS_EnterOS
+mrc P15, 0, r0, C0, C0, 0	@ Read CPU ID from Coprocessor 15 reg 0
+swi OS_LeaveOS
+ldr r2, =BCM2835_id
+cmp r0, r2
+ldreq r1, =Pi1_Irq_Addr		@ base address for ARM interrupt reg
+ldr r2, =BCM2836_id
+cmp r0, r2
+ldreq r1, =Pi2_Irq_Addr		@ base address for ARM interrupt reg
+ldr r2, =BCM2837_id
+cmp r0, r2
+ldreq r1, =Pi2_Irq_Addr		@ base address for ARM interrupt reg (same for Pi2 and Pi3)
 mov r0, #13
-ldr r1, =0x2000B000		@ base address for ARM interrupt reg
 mov r2, #0x228			@ 10 IRQ regs + 0x200 offset
-swi 0x68			@ OS_Memory
+swi OS_Memory
 ldr r0, =ControllerBaseAddress
 str r3, [r0]			@ store base address for IRQ regs
 mov pc, lr

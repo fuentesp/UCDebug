@@ -39,6 +39,7 @@
 #include "main.h"
 
 /* Global variables  */
+int ControllerBaseAddress;
 char DEBUG_AREA[DebugAreaSize];
 struct ContextType CurContext;
 int LastShownContext[18];

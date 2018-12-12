@@ -31,7 +31,7 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.7.3 (4 - Dec - 2018)"
+#define AppVersion			"1.7.4 (12 - Dec - 2018)"
 #define SpriteName			"!ucdebug"
 #define CharSizeX			19
 #define CharSizeY			35
@@ -169,6 +169,7 @@ enum WinScreenStatus {
 #define FPRegsWinOffset	5
 
 /*COMMON GLOBAL VARIABLES */
+extern int ControllerBaseAddress;
 extern osbool mainQuitFlag;
 extern int memDispType;
 extern struct ContextType CurContext;
