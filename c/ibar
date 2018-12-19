@@ -132,7 +132,7 @@ wimp_w open_window(char *Title, int SizeX, int SizeY, int PosX, int PosY, int Vi
 
 	window_definition.title_flags = wimp_ICON_TEXT | wimp_ICON_BORDER | wimp_ICON_HCENTRED
 			| wimp_ICON_VCENTRED | wimp_ICON_FILLED;
-	window_definition.work_flags = wimp_BUTTON_NEVER << wimp_ICON_BUTTON_TYPE_SHIFT;
+	window_definition.work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
 
 	window_definition.sprite_area = wimpspriteop_AREA;
 
