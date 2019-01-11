@@ -265,18 +265,28 @@ void UpdateLastShownCtx() {
 	LastShownContext[16] = CurContext.CPSR;
 	switch (CurContext.CPSR & 0x01F) {
 		case 0x011:
+			for (i = 0; i < 7; i++)
+				LastShownContext[i+8] = CurContext.FiqRegs[i];
 			LastShownContext[17] = CurContext.FiqRegs[7];
 			break;
 		case 0x012:
+			LastShownContext[13] = CurContext.IrqRegs[0];
+			LastShownContext[14] = CurContext.IrqRegs[1];
 			LastShownContext[17] = CurContext.IrqRegs[2];
 			break;
 		case 0x013:
+			LastShownContext[13] = CurContext.SvcRegs[0];
+			LastShownContext[14] = CurContext.SvcRegs[1];
 			LastShownContext[17] = CurContext.SvcRegs[2];
 			break;
 		case 0x017:
+			LastShownContext[13] = CurContext.AbtRegs[0];
+			LastShownContext[14] = CurContext.AbtRegs[1];
 			LastShownContext[17] = CurContext.AbtRegs[2];
 			break;
 		case 0x01B:
+			LastShownContext[13] = CurContext.UndRegs[0];
+			LastShownContext[14] = CurContext.UndRegs[1];
 			LastShownContext[17] = CurContext.UndRegs[2];
 			break;
 		default:

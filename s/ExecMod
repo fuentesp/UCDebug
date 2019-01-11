@@ -594,16 +594,19 @@ bge NotRunClaimDev
 @ check if interrupt already in GUI
 ldr r1, =DbgControllerMask
 cmp r0, #32
+mov r3, r0
 addge r1, r1, #4	@ if device>=32, get IRQ 2
+subge r3, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
 ldr r1, [r1]
 mov r2, #1
-lsl r2, r2, r0		@ translate device number into its bit within mask
+lsl r2, r2, r3		@ translate device number into its bit within mask
 tst r1, r2
 bne NotRunClaimDev	@ device already in Dbg mask, should not be used
 @ place interrupt in user mask
 ldr r1, =UsrControllerMask
 cmp r0, #32
 addge r1, r1, #4	@ if device>=32, get IRQ 2
+subge r0, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
 ldr r3, [r1]
 orr r3, r3, r2
 str r3, [r1]		@ add this device number to interrupt mask
@@ -663,23 +666,24 @@ sub r4, r4, #1		@ decrease number of drivers for 2 reasons: to update value,
 E_c7_forj:              @ and because last entry has to be cleared
 cmp r2, r4
 bge E_c7_endfor
-stmdb sp!, {r0-r3}
-add r3, r4, #12		@ move pointer to next entry
-ldm r3, {r0-r2}		@ load values from entry
-stm r4, {r0-r2}		@ store in entry-1
-ldmia sp!, {r0-r3}
-add r4, r4, #12		@ move pointer forward
+stmdb sp!, {r0-r2}
+add r0, r3, #12		@ pointer to next entry
+ldm r0, {r0-r2}		@ load values from entry
+stm r3, {r0-r2}		@ store in entry-1
+ldmia sp!, {r0-r2}
+add r3, r3, #12		@ move pointer forward
 add r2, r2, #1
 b E_c7_forj		@ go to the beginning of the loop
 E_c7_endfor:
 str r4, [r1]		@ update number of drivers
 ldr r0, [r5]		@ get device number
-mov r2, #1
-lsl r2, r2, r0		@ translate device number into its bit within mask
 ldr r1, =UsrControllerMask
 cmp r0, #32
 addge r1, r1, #4	@ if device>=32, get IRQ 2
+subge r0, r0, #32	@ convert dev id to offset within current set of ids (IRQ 1 or 2)
 ldr r3, [r1]
+mov r2, #1
+lsl r2, r2, r0		@ translate device number into its bit within mask
 bic r3, r3, r2
 str r3, [r1]		@ remove this device number to interrupt mask
 
