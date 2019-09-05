@@ -29,6 +29,7 @@ all: !UCDebug/!RunImage
 FLAGS=-O2
 
 HEADERS=CodeWin.h ConsWin.h DataWin.h FPRegsWin.h ibar.h Interpreter.h main.h RegsWin.h
+HEADERSS=Constants.s
 
 ib.o: ibar.c $(HEADERS)
 	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o ib.o ibar.c
@@ -54,13 +55,13 @@ In.o: Interpreter.c $(HEADERS)
 Dbg.o: Debug.c $(HEADERS)
 	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o Dbg.o Debug.c
 
-Exec.o: ExecMod.s
+Exec.o: ExecMod.s $(HEADERSS)
 	as -mfpu=vfpv2 -o Exec.o ExecMod.s
 
-Hand.o:	Handler.s
+Hand.o:	Handler.s $(HEADERSS)
 	as -mfpu=vfpv2 -o Hand.o Handler.s
 
-Aux.o:	Aux.s
+Aux.o:	Aux.s $(HEADERSS)
 	as -mfpu=vfpv2 -o Aux.o Aux.s
 
 !UCDebug/!RunImage: ib.o CWin.o DWin.o RWin.o FPWin.o CoWin.o In.o Dbg.o Exec.o Hand.o Aux.o
