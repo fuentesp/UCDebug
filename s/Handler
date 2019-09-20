@@ -29,6 +29,7 @@
 .global   DataAbortHandler
 .global   IRQHandler
 .global   ReleaseHandler
+.global   IRQregBkup @just for prefteching
 .extern   CurContext
 .extern   ExecType
 .extern   ControllerBaseAddress
@@ -63,35 +64,43 @@ vstm r2!, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR
 str r3, [r2]			@ write FPSCR
 
+@DUMP
+@ldr r4,=ControllerBaseAddress
+@ldr r4,[r4]
+@ldr r4,[r4,#0x20C] @FIQ control
+@str r4,[r0,#10*4] @ show FIQ as r10
+@str r4,[r0,#9*4] @ show FIQ as r9
+
 mrs r3, spsr
 str r3, [r0, #OffCpsr]		@ write program CPSR (copied to SPSR when accessing excep)
 str sp, [r0, #OffAbtRegs]	@ write abort sp
 @str lr, [r0, #OffAbtRegs+4]	@ write abort lr [DO NOT! IT IS CHANGED WHEN ENTERING THE EXCEP]
 str r3, [r0, #OffAbtRegs+8]	@ write abort SPSR
-ldr r3, =MaskDisIRQs+MaskSvcMode
+mov r4,#MaskDisIRQs
+orr r3,r4,#MaskSvcMode
 msr cpsr, r3			@ switch to Supervisor mode
 mrs r3, spsr
 add r2, r0, #OffSvcRegs
 stmia r2!, {sp, lr}		@ write supervisor sp and lr
 str r3, [r2], #4		@ write supervisor SPSR in its place
-ldr r3, =MaskDisIRQs+MaskUndMode
+orr r3,r4,#MaskUndMode
 msr cpsr, r3			@ switch to Undefined mode
 mrs r3, spsr
 add r2, r0, #OffUndRegs
 stmia r2!, {sp, lr}		@ write undefined sp and lr
 str r3, [r2], #4		@ write undefined SPSR in its place
-ldr r3, =MaskDisIRQs+MaskIrqMode
+orr r3,r4,#MaskIrqMode
 msr cpsr, r3			@ switch to IRQ mode
 mrs r3, spsr
 stmia r2!, {sp, lr}		@ write IRQ sp and lr
 str r3, [r2], #4		@ write IRQ SPSR in its place
-ldr r3, =MaskDisIRQs+MaskFiqMode
+orr r3,r4,#MaskFiqMode
 msr cpsr, r3			@ switch to FIQ mode
 mrs r3, spsr
 add r2, r0, #OffFiqRegs
 stmia r2!, {r8-r14}		@ write FIQ specific regs
 str r3, [r2]			@ write FIQ SPSR in its place
-ldr r3, =MaskDisIRQs+MaskSysMode		
+orr r3,r4,#MaskSysMode
 msr cpsr, r3			@ switch to system mode to access remaining user regs
 str sp, [r0, #52]		@ write program sp in its place
 str lr, [r0, #56]		@ write program lr in its place
@@ -172,6 +181,14 @@ DataAbortHandler:
 str r0, [sp, #-4]!
 ldr r0,=CurContext
 stm r0,{r0-r12}
+
+@DUMP
+@ldr r1,=ControllerBaseAddress
+@ldr r1,[r1]
+@ldr r1,[r1,#0x20C] @FIQ control
+@str r1,[r0,#10*4] @ show FIQ as r10 -> reports 0x89
+@str r1,[r0,#9*4] @ show FIQ as r9
+
 ldr r1, [sp], #4
 str r1, [r0]		@ write program r0 in its place in CurContext
 sub r1, lr, #8
@@ -183,9 +200,10 @@ str r3, [r2] @ write FPSCR
 str sp, [r0, #OffAbtRegs] @ write abort sp
 str lr, [r0, #OffAbtRegs+4] @ write abort lr
 mrs r3, spsr
+mov r4,#MaskDisIRQs
 str r3, [r0, #OffAbtRegs+8] @ write abort SPSR
 str r3, [r0, #OffCpsr] @ write program CPSR (copied to SPSR when accessing excep)
-ldr r3, =MaskDisIRQs+MaskSysMode	@ Disable interrupts and imprecise aborts
+orr r3,r4,#MaskSysMode			@ Disable interrupts and imprecise aborts
 msr cpsr, r3 @ switch to system mode to access remaining user regs
 str sp, [r0, #52] @ write program sp in its place
 str lr, [r0, #56] @ write program lr in its place
@@ -195,25 +213,25 @@ str sp, [r0, #OffUndRegs] @ write undefined sp
 str lr, [r0, #OffUndRegs+4] @ write undefined lr
 mrs r2, spsr
 str r2, [r0, #OffUndRegs+8] @ write undefined SPSR in its place
-ldr r3, =MaskDisIRQs+MaskIrqMode
+orr r3,r4,#MaskIrqMode
 msr cpsr, r3 @ switch from Und to IRQ mode
 mrs r2, spsr
 str r2, [r0, #OffIrqRegs+8] @ write IRQ SPSR in its place
 str sp, [r0, #OffIrqRegs] @ write IRQ sp
 str lr, [r0, #OffIrqRegs+4] @ write IRQ lr
-ldr r3, =MaskDisIRQs+MaskSvcMode
+orr r3,r4,#MaskSvcMode
 msr cpsr, r3 @ switch from IRQ to Supervisor mode
 mrs r2, spsr
 str r2, [r0, #OffSvcRegs+8] @ write supervisor SPSR in its place
 str sp, [r0, #OffSvcRegs] @ write supervisor sp
 str lr, [r0, #OffSvcRegs+4] @ write supervisor lr
-ldr r3, =MaskDisIRQs+MaskFiqMode
+orr r3,r4,#MaskFiqMode
 msr cpsr, r3 @ switch to FIQ mode
 mrs r2, spsr
 str r2, [r0, #OffFiqRegs+28] @ write FIQ SPSR in its place
 add r2, r0, #OffFiqRegs
 stm r2, {r8-r14} @ write FIQ specific regs
-ldr r3, =MaskDisIRQs+MaskSysMode
+orr r3,r4,#MaskSysMode
 msr cpsr, r3 @ switch to sys mode
 
 @ check if data abort is due to paging error
@@ -225,8 +243,9 @@ cmp r0, #0x7
 bne mDAb			@ If fault!=0b0111, mark as data abort
 mrc p15, 0, r0, cr6, cr0, 0	@ Conflict address
 mov r1, r0
-swi OS_ValidateAddress
-bcs mDAb			@ If C flag active, address is outside valid range
+@CCC: can these raise some problem if they are not paged or something?
+@swi OS_ValidateAddress
+@bcs mDAb			@ If C flag active, address is outside valid range
 ldr r0, =PrefetchAddress	@ If valid address, store it to prefetch in
 str r1, [r0]			@ the next loop,
 b ReleaseHandler		@ and do not mark data abort
@@ -467,6 +486,10 @@ add r5, r4, #0x210
 str r1, [r5], #4                @ Enable those interrupts used by the GUI
 str r2, [r5], #4		@ one by one (a stm produces weird
 str r3, [r5], #4		@ effects)
+add r5,r4,#0x20C @FIQ control
+ldr r0,[r5]
+orr r0,r0,#0x80 @Enable fiq
+str r0,[r5]
 
 ldr r0,=HandDatRel
 ldr r1,[r0]

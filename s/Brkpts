@@ -1,0 +1,144 @@
+@ !UCDebug, ARM debugger for RISC OS.
+@ https://github.com/fuentesp/UCDebug
+@ Copyright (C) 2018  University of Cantabria
+@
+@ !UCDebug was developed by the Computer Architecture and Technology
+@ Group at the University of Cantabria. A comprehensive list of authors
+@ can be found in the file AUTHORS.txt.
+@
+@ You can reach the main developers at {fernando.vallejo, cristobal.camarero,
+@ pablo.fuentes}@unican.es.
+@
+@ This program is free software: you can redistribute it and/or modify
+@ it under the terms of the GNU General Public License as published by
+@ the Free Software Foundation, either version 3 of the License, or
+@ (at your option) any later version.
+@
+@ This program is distributed in the hope that it will be useful,
+@ but WITHOUT ANY WARRANTY; without even the implied warranty of
+@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+@ GNU General Public License for more details.
+@
+@ You should have received a copy of the GNU General Public License
+@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+.include  "s/Constants"
+
+.global   setfastbreakpoints
+.extern   CurContext
+.extern   BrkPtList
+.extern   CurNumBr
+
+.data
+
+.align 2
+immediatebreakpointnumber: .word 0
+immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
+
+.align 2
+
+.text
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Set breakpoints for go-fast mode (at every breakpoint established by the user
+@ and at every SWI whose execution is captured)
+@
+setfastbreakpoints:
+ldr lr, =jtp
+stmdb sp!, {r4-r6, lr}
+ldr r4, =BrkpInst
+ldr r5, =immediatebreakpoints
+ldr r6, =immediatebreakpointnumber
+mov r0, #0
+str r0, [r6]   @ Reset # of breakpoints
+
+@ check the whole code (from the beginning of ELF file to beginning of data
+@ section)
+ldr r0, =AddrElfFile
+ldr r0, [r0]
+ldr r1, =AddrCodeEnd
+ldr r1, [r1]
+sfb_loop:
+ldr r2, [r0]           @ get instruction
+and r3, r2, #SWI_Mask
+cmp r3, #SWI_Mask
+bne sfb_checkinstr_end
+bic r2, r2, #Cond_Mask
+ldr r3, =Code_OSExit
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSWriteStr
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSWriteChar
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSGetChar
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSEnterOS
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSLeaveOS
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSClaimDeviceVector
+cmp r2, r3
+beq sfb_setbrk
+ldr r3, =Code_OSReleaseDeviceVector
+bne sfb_checkinstr_end
+
+sfb_setbrk:                    @ set a breakpoint
+ldr r2, =CurContext
+ldr r2, [r2, #60]               @ get PC
+cmp r2, r0
+beq sfb_checkinstr_end          @ do not place brkpt in current PC
+ldr r2, [r0]                   @ instruction to be saved
+str r0, [r5], #4               @ save address
+str r2, [r5], #4               @ save content
+str r4, [r0]                   @ set the bkpt
+ldr r3, [r6]
+add r3, r3, #1                 @ increase breakpoint counter
+str r3, [r6]                   @ store the breakpoint counter
+
+sfb_checkinstr_end:
+add r0, r0, #4
+cmp r0, r1
+blt sfb_loop
+
+@ Now checked the breakpoints established by the user;
+@ check if any matches one already set
+ldr r0,=CurNumBr
+ldr r0,[r0]                    @ Load the number of BreakPoints
+cmp r0, #0
+beq sfb_return                 @ if no breakpoints, return from routine
+ldr r1, =BrkPtList             @ pointer to BreakPoints List
+sfb_loop2:
+ldr r2, [r1], #4               @ get address of the breakpoint
+ldr r3, =CurContext
+ldr r3, [r3, #60]               @ get PC
+cmp r2, r3
+beq sfb_checkloop2             @ do not place brkpt in current PC
+ldr r3, [r2]
+cmp r3, r4                     @ check if a breakpoint is already in place
+beq sfb_checkloop2
+str r2, [r5], #4               @ save address
+str r3, [r5], #4               @ save content
+str r4, [r2]                   @ set the bkpt
+ldr r3, [r6]
+add r3, r3, #1                 @ increase breakpoint counter
+str r3, [r6]                   @ store the breakpoint counter
+
+sfb_checkloop2:
+subs r0, r0, #1
+bne sfb_loop2
+
+sfb_return:
+mov r0,#0 @ flags, 0 for all memory
+swi OS_SynchronizeCodeAreas
+
+ldmia sp!, {r4-r6, pc}
+
+.end
