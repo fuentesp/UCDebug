@@ -64,18 +64,18 @@ Brkp.o: Brkpts.s $(HEADERSS)
 Hand.o:	Handler.s $(HEADERSS)
 	as -mfpu=vfpv2 -o Hand.o Handler.s
 
-Aux.o:	Aux.s $(HEADERSS)
-	as -mfpu=vfpv2 -o Aux.o Aux.s
+Misc.o:	Misc.s $(HEADERSS)
+	as -mfpu=vfpv2 -o Misc.o Misc.s
 
-!UCDebug/!RunImage: ib.o CWin.o DWin.o RWin.o FPWin.o CoWin.o In.o Dbg.o Exec.o Brkp.o Hand.o Aux.o
-	gcc -Wl,--no-warn-mismatch -mfpu=vfp -LOSLib: -lOSLib32 -o !UCDebug/!RunImage Dbg.o ib.o CoWin.o CWin.o DWin.o RWin.o FPWin.o In.o Exec.o Brkp.o Hand.o Aux.o
+!UCDebug/!RunImage: ib.o CWin.o DWin.o RWin.o FPWin.o CoWin.o In.o Dbg.o Exec.o Brkp.o Hand.o Misc.o
+	gcc -Wl,--no-warn-mismatch -mfpu=vfp -LOSLib: -lOSLib32 -o !UCDebug/!RunImage Dbg.o ib.o CoWin.o CWin.o DWin.o RWin.o FPWin.o In.o Exec.o Brkp.o Hand.o Misc.o
 
 clean:
 	remove !UCDebug.!RunImage
 	remove o.Exec
 	remove o.Brkp
 	remove o.Hand
-	remove o.Aux
+	remove o.Misc
 	remove o.Dbg
 	remove o.In
 	remove o.CoWin
