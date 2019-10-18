@@ -276,6 +276,7 @@ void UsrScroll() {
 	int i;
 	for (i = 0; i < NumLinUsrCon - 1; i++)
 		strcpy(UsrCons.T_Lines[i], UsrCons.T_Lines[i + 1]);
+	UsrCursor = 0; /* Reset cursor to beginning of line */
 }
 
 /* UsrWrite writes at the last line of the User Console. It does not print an End-of-Line
@@ -290,7 +291,6 @@ void UsrWrite(wimp_w UsrWin, char *text) {
 		if ((c == (char) 0x0A) || (UsrCursor == NumColUsrCon)) {
 			UsrCons.T_Lines[NumLinUsrCon - 1][UsrCursor] = (char) 0x00;
 			UsrScroll();
-			UsrCursor = 0;
 		}
 		if (c != (char) 0x0A) {
 			if (c < 0x20) c = '.';
