@@ -34,6 +34,9 @@ struct DataType {
 	char T_Addr[PrintedWordSize + 1];
 	char T_Data[MemHexBlockSize];
 	char T_ASCII[MemAsciiBlockSize];
+	char V_Addr[ValStrSize + 1];
+	char V_Data[ValStrSize + 1];
+	char V_ASCII[ValStrSize + 1];
 };
 
 /*Public Vars*/

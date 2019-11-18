@@ -116,13 +116,13 @@ wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY) {
 		Addr = Addr + 4;
 
 		CodeIcons[i].I_Addr = TextIconCreate(CodeWin, 10, 5 + LinSizeY * i,
-				CharSizeX * 10, CharSizeY, CodeIcons[i].T_Addr);
+				CharSizeX * 10, CharSizeY, CodeIcons[i].T_Addr, PrintedWordSize+1, CodeIcons[i].V_Addr);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Addr, wimp_COLOUR_LIGHT_GREY);
 		CodeIcons[i].I_Code = TextIconCreate(CodeWin, 20 + CharSizeX * 10,
-				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, CodeIcons[i].T_Code);
+				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, CodeIcons[i].T_Code, PrintedWordSize+1, CodeIcons[i].V_Code);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Code, wimp_COLOUR_LIGHT_GREY);
 		CodeIcons[i].I_Disem = TextIconCreate(CodeWin, 30 + CharSizeX * 20,
-				5 + LinSizeY * i, CharSizeX * 40, CharSizeY, CodeIcons[i].T_Disem);
+				5 + LinSizeY * i, CharSizeX * 40, CharSizeY, CodeIcons[i].T_Disem, DisasInstrSize, CodeIcons[i].V_Disem);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Disem, wimp_COLOUR_LIGHT_GREY);
 	}
 

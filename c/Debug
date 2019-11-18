@@ -62,6 +62,7 @@ enum WinScreenStatus WindowStates[6] = { wss_ON_SCREEN, wss_ON_SCREEN, wss_ON_SC
 int NumWindows = 6;
 osbool FPdispDoublePrec = FALSE;
 wimp_t AppTask;
+font_f AppFont;
 
 
 /* Handle to the different windows */
@@ -87,9 +88,10 @@ int main(int argc, char *argv[]) {
 
 	main_initialize();
 	wimp_message_list *mlist;
-	mlist = malloc(sizeof(int) * 2);
+	mlist = malloc(sizeof(int) * 3);
 	mlist->messages[0] = message_ICONISE;
 	mlist->messages[1] = message_ICONISE_AT;
+	mlist->messages[2] = 0;
 	wimp_add_messages(mlist);
 
 	/* Fill up the debug area with random garbage data */
@@ -135,6 +137,10 @@ int main(int argc, char *argv[]) {
 }
 
 static void main_initialize(void) {
+	/* Set the app font and store its handle for its use in icon creation */
+	int xsize=0xC0, ysize=0xC0, xres=0x5A, yres=0x5A, xreso, yreso;
+	AppFont=font_find_font(TextFontName, xsize, ysize, xres, yres, &xreso, &yreso);
+
 	AppTask = wimp_initialise(wimp_VERSION_RO3, AppName, NULL, NULL);
 	ibar_initialise();
 	InitializeDbgKernel();
@@ -257,7 +263,6 @@ void mainPoll(void) {
 
 		case wimp_CLOSE_WINDOW_REQUEST: /* reason=3 */
 			if (block.close.w == ConsWin) {
-				FreeIconbarMenu();
 				mainQuitFlag = TRUE;
 			}
 			if (block.close.w == UsrWin && WindowStates[UsrWinOffset] == wss_ON_SCREEN) {
@@ -274,7 +279,6 @@ void mainPoll(void) {
 		case wimp_USER_MESSAGE_ACKNOWLEDGE:
 		case wimp_USER_MESSAGE:
 			if (block.message.action == message_QUIT) {
-				FreeIconbarMenu();
 				mainQuitFlag = TRUE;
 			}
 			break;
@@ -378,7 +382,9 @@ void mainPoll(void) {
 }
 
 static void main_terminate(void) {
+	FreeIconbarMenu();
 	wimp_close_down(0);
+	font_lose_font(AppFont);
 }
 
 /* Check if the address is in the accepted range */

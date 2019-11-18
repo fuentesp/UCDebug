@@ -24,10 +24,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "main.h"
+
 /* Public Types */
 struct InfoType {
-	char Text[60];
-	char Validation[60];
+	char Text[InfoTextSize + 1];
+	char Validation[InfoTextSize + 1];
 };
 
 /* Public vars */
@@ -38,9 +40,9 @@ void ibar_initialise(void);
 wimp_w open_window(char *Title, int SizeX, int SizeY, int PosX, int PosY, int VisX,
 		int VisY, int ScH, int ScV, int Buttons);
 wimp_i TextIconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height,
-		char *Text);
+		char *Text, int Length, char *Validation);
 wimp_i IconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height,
-		int flags, char *Text, char *Validation);
+		int flags, char *Text, int Length, char *Validation);
 void UpdateWindow(wimp_w WinHandle);
 void ResetWindow(wimp_w WinHandle, int SizeX, int SizeY, int PosX, int PosY, int ScH,
 		int ScV, wimp_w NextW);

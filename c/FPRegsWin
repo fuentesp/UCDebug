@@ -46,29 +46,26 @@ wimp_w FPRegsWinCreate(int PosX, int PosY) {
 	FPRegsWin = open_window(FPRegsWinName, FPRegsWinSizeX, FPRegsWinSizeY, PosX, PosY,
 			FPRegsWinSizeX, FPRegsWinSizeY, 0, 0, 0x06);
 
-	strncpy(FPRegsIcons[32].T_Name, "FPSCR", 6);
-	strncpy(FPRegsIcons[33].T_Name, "FLAGS", 6);
 	if (FPdispDoublePrec) {
 		/* Display double precision regs */
 		for (i = 0; i < 16; i += 1) {
 			snprintf(FPRegsIcons[i].T_Name, 6, "d%d", i);
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * 2 * i,
-					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name);
+					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 			/* In double precision, even single-precision registers map to the least significant part of the
 			 value, and odd single-precision registers map to the most significant part*/
 			FPRegsIcons[2 * i].I_Val = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * 2 * i, CharSizeX * PrintedWordSize, CharSizeY,
-					FPRegsIcons[2 * i + 1].T_Val);
+					FPRegsIcons[2 * i + 1].T_Val, PrintedWordSize + 1, FPRegsIcons[2 * i + 1].V_Val);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[2 * i].I_Val, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[2 * i + 1].I_Val = TextIconCreate(FPRegsWin,
 					25 + CharSizeX * (PrintedWordSize + 6), 5 + LinSizeY * 2 * i,
-					CharSizeX * PrintedWordSize, CharSizeY, FPRegsIcons[2 * i].T_Val);
-			ChTextBGColour(FPRegsWin, FPRegsIcons[2 * i + 1].I_Val,
-					wimp_COLOUR_LIGHT_GREY);
+					CharSizeX * PrintedWordSize, CharSizeY, FPRegsIcons[2 * i].T_Val, PrintedWordSize + 1, FPRegsIcons[2 * i].V_Val);
+			ChTextBGColour(FPRegsWin, FPRegsIcons[2 * i + 1].I_Val, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_FPval = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * (2 * i + 1), CharSizeX * PrintedDoubleSize + 10,
-					CharSizeY, FPRegsIcons[i].T_FPval);
+					CharSizeY, FPRegsIcons[i].T_FPval, PrintedFloatSize + 1, FPRegsIcons[i].V_FPval);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_FPval, wimp_COLOUR_LIGHT_GREY);
 		}
 	} else {
@@ -77,26 +74,28 @@ wimp_w FPRegsWinCreate(int PosX, int PosY) {
 			snprintf(FPRegsIcons[i].T_Name, 6, "s%d", i);
 			/* Create the icons of registers 0 - 31 (single-value FP regs) */
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * i,
-					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name);
+					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_Val = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * i, CharSizeX * PrintedWordSize, CharSizeY,
-					FPRegsIcons[i].T_Val);
+					FPRegsIcons[i].T_Val, PrintedWordSize + 1, FPRegsIcons[i].V_Val);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_FPval = TextIconCreate(FPRegsWin,
 					25 + CharSizeX * (PrintedWordSize + 6), 5 + LinSizeY * i,
-					CharSizeX * PrintedFloatSize, CharSizeY, FPRegsIcons[i].T_FPval);
+					CharSizeX * PrintedFloatSize, CharSizeY, FPRegsIcons[i].T_FPval, PrintedFloatSize + 1, FPRegsIcons[i].V_FPval);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_FPval, wimp_COLOUR_LIGHT_GREY);
 		}
 	}
 
 	/* Create the icons for the FCPSR and its flags */
+	strncpy(FPRegsIcons[32].T_Name, "FPSCR", 6);
+	strncpy(FPRegsIcons[33].T_Name, "FLAGS", 6);
 	for (i = 32; i < 34; i++) {
 		FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 20 + LinSizeY * i,
-				CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name);
+				CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 		ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 		FPRegsIcons[i].I_Val = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
-				20 + LinSizeY * i, CharSizeX * 10, CharSizeY, FPRegsIcons[i].T_Val);
+				20 + LinSizeY * i, CharSizeX * 10, CharSizeY, FPRegsIcons[i].T_Val, PrintedWordSize + 1, FPRegsIcons[i].V_Val);
 		ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
 	}
 
@@ -149,22 +148,22 @@ void ToggleWinDisplay(wimp_w FPRegsWin) {
 		for (i = 0; i < 16; i += 1) {
 			snprintf(FPRegsIcons[i].T_Name, 6, "d%d", i);
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * 2 * i,
-					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name);
+					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 			/* In double precision, even single-precision registers map to the least significant part of the
 			 value, and odd single-precision registers map to the most significant part*/
 			FPRegsIcons[2 * i].I_Val = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * 2 * i, CharSizeX * PrintedWordSize, CharSizeY,
-					FPRegsIcons[2 * i + 1].T_Val);
+					FPRegsIcons[2 * i + 1].T_Val, PrintedWordSize + 1, FPRegsIcons[2 * i + 1].V_Val);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[2 * i].I_Val, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[2 * i + 1].I_Val = TextIconCreate(FPRegsWin,
 					25 + CharSizeX * (PrintedWordSize + 6), 5 + LinSizeY * 2 * i,
-					CharSizeX * PrintedWordSize, CharSizeY, FPRegsIcons[2 * i].T_Val);
+					CharSizeX * PrintedWordSize, CharSizeY, FPRegsIcons[2 * i].T_Val, PrintedWordSize + 1, FPRegsIcons[2 * i].V_Val);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[2 * i + 1].I_Val,
 					wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_FPval = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * (2 * i + 1), CharSizeX * PrintedDoubleSize + 10,
-					CharSizeY, FPRegsIcons[i].T_FPval);
+					CharSizeY, FPRegsIcons[i].T_FPval, PrintedFloatSize + 1, FPRegsIcons[i].V_FPval);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_FPval, wimp_COLOUR_LIGHT_GREY);
 		}
 	} else { /* Change from double to simple precision */
@@ -178,15 +177,15 @@ void ToggleWinDisplay(wimp_w FPRegsWin) {
 			snprintf(FPRegsIcons[i].T_Name, 6, "s%d", i);
 			/* Create the icons of registers 0 - 31 (single-value FP regs) */
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * i,
-					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name);
+					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_Val = TextIconCreate(FPRegsWin, 15 + CharSizeX * 6,
 					5 + LinSizeY * i, CharSizeX * PrintedWordSize, CharSizeY,
-					FPRegsIcons[i].T_Val);
+					FPRegsIcons[i].T_Val, PrintedWordSize + 1, FPRegsIcons[i].V_Val);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
 			FPRegsIcons[i].I_FPval = TextIconCreate(FPRegsWin,
 					25 + CharSizeX * (PrintedWordSize + 6), 5 + LinSizeY * i,
-					CharSizeX * PrintedFloatSize, CharSizeY, FPRegsIcons[i].T_FPval);
+					CharSizeX * PrintedFloatSize, CharSizeY, FPRegsIcons[i].T_FPval, PrintedFloatSize + 1, FPRegsIcons[i].V_FPval);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_FPval, wimp_COLOUR_LIGHT_GREY);
 		}
 	}

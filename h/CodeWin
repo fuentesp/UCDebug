@@ -34,6 +34,9 @@ struct CodeType {
 	char T_Addr[PrintedWordSize+1];
 	char T_Code[PrintedWordSize+1];
 	char T_Disem[DisasInstrSize];
+	char V_Addr[ValStrSize+1];
+	char V_Code[ValStrSize+1];
+	char V_Disem[ValStrSize+1];
 };
 
 /*Public Vars*/

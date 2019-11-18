@@ -28,8 +28,10 @@
 struct RegType {
 	wimp_i I_Name;
 	wimp_i I_Val;
-	char T_Name[10];
+	char T_Name[RegNameSize + 1];
 	char T_Val[PrintedWordSize + 1];
+	char V_Name[ValStrSize + 1];
+	char V_Val[ValStrSize + 1];
 };
 
 /* Public Vars*/

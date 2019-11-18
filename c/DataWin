@@ -52,16 +52,16 @@ wimp_w DataWinCreate(int startAddr, int numAddrs, int displayType, int PosX, int
 	/* Create the icons with the memory view (address, values, and ASCII notation) */
 	for (i = 0; i < numAddrs; i++) {
 		DataIcons[i].I_Addr = TextIconCreate(DataWin, 10, 5 + LinSizeY * i,
-				CharSizeX * (PrintedWordSize - 1), CharSizeY, DataIcons[i].T_Addr);
+				CharSizeX * (PrintedWordSize - 1), CharSizeY, DataIcons[i].T_Addr, PrintedWordSize + 1, DataIcons[i].V_Addr);
 		ChTextBGColour(DataWin, DataIcons[i].I_Addr, wimp_COLOUR_LIGHT_GREY);
 		DataIcons[i].I_Data = TextIconCreate(DataWin,
 				20 + CharSizeX * (PrintedWordSize - 1), 5 + LinSizeY * i,
-				CharSizeX * (MemHexBlockSize - 2), CharSizeY, DataIcons[i].T_Data);
+				CharSizeX * (MemHexBlockSize - 2), CharSizeY, DataIcons[i].T_Data, MemHexBlockSize, DataIcons[i].V_Data);
 		ChTextBGColour(DataWin, DataIcons[i].I_Data, wimp_COLOUR_LIGHT_GREY);
 		DataIcons[i].I_ASCII = TextIconCreate(DataWin,
 				30 + CharSizeX * (PrintedWordSize + MemHexBlockSize - 3),
 				5 + LinSizeY * i, CharSizeX * (MemAsciiBlockSize - 2), CharSizeY,
-				DataIcons[i].T_ASCII);
+				DataIcons[i].T_ASCII, MemAsciiBlockSize, DataIcons[i].V_ASCII);
 		ChTextBGColour(DataWin, DataIcons[i].I_ASCII, wimp_COLOUR_LIGHT_GREY);
 	}
 

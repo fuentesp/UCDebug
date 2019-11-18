@@ -43,12 +43,15 @@ struct ConsType {
 	char T_Lines[ConsLinTot - 1][ConsLinSize + 1];
 	char T_Prompt[PromptSize + 1];
 	char T_LinInp[ConsLinSize - PromptSize + 1];
+	char V_Lines[ConsLinTot - 1][ValStrSize + 1];
+	char V_Prompt[ValStrSize + 1];
+	char V_LinInp[ValStrSize + 1];
 };
 
 struct UsrConsType {
 	wimp_i I_Lines[NumLinUsrCon];
 	char T_Lines[NumLinUsrCon][NumColUsrCon + 1];
-
+	char V_Lines[NumLinUsrCon][ValStrSize + 1];
 };
 
 /*Private Vars*/
@@ -64,7 +67,6 @@ int UsrCursor;
 wimp_w ConsWinCreate(int PosX, int PosY) {
 	/* Function vars */
 	wimp_w ConsWin;
-	wimp_icon_create icon_definition;
 	int i;
 
 	/* Initialize the command buffer */
@@ -79,30 +81,19 @@ wimp_w ConsWinCreate(int PosX, int PosY) {
 	for (i = 0; i < ConsLinTot - 1; i++) {
 		strncpy(Console.T_Lines[i], "", ConsLinSize);
 		Console.I_Lines[i] = TextIconCreate(ConsWin, 10, 5 + LinSizeY * i,
-		CharSizeX * ConsLinSize, CharSizeY, Console.T_Lines[i]);
+		CharSizeX * ConsLinSize, CharSizeY, Console.T_Lines[i], ConsLinSize + 1, Console.V_Lines[i]);
 	}
 
 	/* Define prompt icon */
 	strncpy(Console.T_Prompt, CurPrompt, PromptSize);
 	Console.I_Prompt = TextIconCreate(ConsWin, 10, 5 + LinSizeY * (ConsLinTot - 1),
-	CharSizeX * PromptSize, CharSizeY, Console.T_Prompt);
+	CharSizeX * PromptSize, CharSizeY, Console.T_Prompt, PromptSize + 1, Console.V_Prompt);
 
 	strcpy(Console.T_LinInp, "");
-	icon_definition.w = ConsWin;
-	icon_definition.icon.extent.x0 = 10 + CharSizeX * PromptSize;
-	icon_definition.icon.extent.y0 = -(5 + LinSizeY * (ConsLinTot - 1) + CharSizeY);
-	icon_definition.icon.extent.x1 = 10 + ConsLinSize * CharSizeX;
-	icon_definition.icon.extent.y1 = -(5 + LinSizeY * (ConsLinTot - 1));
-	icon_definition.icon.flags = wimp_ICON_TEXT | wimp_ICON_VCENTRED | wimp_ICON_FILLED
-			| wimp_ICON_INDIRECTED | (wimp_BUTTON_WRITABLE << wimp_ICON_BUTTON_TYPE_SHIFT)
-			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
-			| (wimp_COLOUR_VERY_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
-
-	icon_definition.icon.data.indirected_text.text = Console.T_LinInp;
-	icon_definition.icon.data.indirected_text.size = ConsLinSize - PromptSize;
-	icon_definition.icon.data.indirected_text.validation = "";
-
-	Console.I_LinInp = wimp_create_icon(&icon_definition);
+	Console.I_LinInp = TextIconCreate(ConsWin, 10 + CharSizeX * PromptSize, 5 + LinSizeY * (ConsLinTot - 1),
+			CharSizeX * (ConsLinSize - PromptSize), CharSizeY, Console.T_LinInp, ConsLinSize - PromptSize, Console.V_LinInp);
+	wimp_set_icon_state(ConsWin, Console.I_LinInp, wimp_BUTTON_WRITABLE << wimp_ICON_BUTTON_TYPE_SHIFT,
+			wimp_ICON_BUTTON_TYPE);
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94, -3200, 34, 0); /* Place prompt at the beginning */
 	return ConsWin;
 }
@@ -263,7 +254,7 @@ wimp_w UsrWinCreate(int PosX, int PosY) {
 	for (i = 0; i < NumLinUsrCon; i++) {
 		strncpy(UsrCons.T_Lines[i], "", ConsLinSize);
 		UsrCons.I_Lines[i] = TextIconCreate(UsrWin, 10, 5 + LinSizeY * i,
-		CharSizeX * NumColUsrCon, CharSizeY, UsrCons.T_Lines[i]);
+		CharSizeX * NumColUsrCon, CharSizeY, UsrCons.T_Lines[i], ConsLinSize + 1, UsrCons.V_Lines[i]);
 	}
 	UsrCursor = 0;
 	WindowStates[UsrWinOffset] = wss_ON_SCREEN;

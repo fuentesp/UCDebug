@@ -29,9 +29,12 @@ struct FPRegType {
 	wimp_i I_Name;
 	wimp_i I_Val;
 	wimp_i I_FPval;
-	char T_Name[7];
+	char T_Name[FPRegNameSize + 1];
 	char T_Val[PrintedWordSize + 1];
-	char T_FPval[PrintedFloatSize + 1];
+	char T_FPval[PrintedDoubleSize + 1];
+	char V_Name[ValStrSize + 1];
+	char V_Val[ValStrSize + 1];
+	char V_FPval[ValStrSize + 1];
 };
 
 /* Public Vars*/

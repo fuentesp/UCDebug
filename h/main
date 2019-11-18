@@ -31,8 +31,10 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.7.7 (20 - Sep - 2019)"
+#define AppVersion			"1.8.0"
+#define AppDate				" (15 - Nov - 2019)"
 #define SpriteName			"!ucdebug"
+#define TextFontName		"\\FCorpus.Medium"
 #define CharSizeX			19
 #define CharSizeY			35
 #define LinSizeY			(CharSizeY+5)
@@ -47,6 +49,10 @@
 #define MemHexBlockSize		63
 #define MemAsciiBlockSize	18
 #define DisasInstrSize		42
+#define RegNameSize			9
+#define FPRegNameSize		6
+#define InfoTextSize		40
+#define ValStrSize			12
 #define NumLinCode			25
 #define NumLinData			25
 #define NumLinUsrCon		25
@@ -58,7 +64,7 @@
 #define CodeWinName			"Code"
 #define DataWinName			"Data"
 #define RegsWinName			"CPU Registers"
-#define ConsWinName			"ARM DEBUG"
+#define ConsWinName			"UCDebug"
 #define UsrWinName			"I/O Console"
 #define FPRegsWinName		"FP Registers"
 #define Prompt              "Dbg>"
@@ -198,6 +204,7 @@ extern int NumWindows;
 extern wimp_w* WinHandles[];
 extern osbool FPdispDoublePrec;
 extern wimp_menu *IconBarMenu;
+extern font_f AppFont;
 
 /* COMMON GLOBAL FUNCTIONS */
 void mainPoll(void);

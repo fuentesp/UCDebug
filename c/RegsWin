@@ -70,29 +70,29 @@ wimp_w RegsWinCreate(int PosX, int PosY) {
 	for (i = 0; i < 16; i++) {
 		/* Create the icons of registers 0 - 15 */
 		RegsIcons[i].I_Name = TextIconCreate(RegsWin, 10, 5 + LinSizeY * i, CharSizeX * 8,
-				CharSizeY, RegsIcons[i].T_Name);
+				CharSizeY, RegsIcons[i].T_Name, RegNameSize + 1, RegsIcons[i].V_Name);
 		ChTextBGColour(RegsWin, RegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 		RegsIcons[i].I_Val = TextIconCreate(RegsWin, 20 + CharSizeX * 10,
-				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val);
+				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val, PrintedWordSize + 1, RegsIcons[i].V_Val);
 		ChTextBGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
 	}
 
 	for (j = 0; j < 3; j++) {
 		i = j + 16;
 		RegsIcons[i].I_Name = TextIconCreate(RegsWin, 10, 20 + LinSizeY * i,
-				CharSizeX * 8, CharSizeY, RegsIcons[i].T_Name);
+				CharSizeX * 8, CharSizeY, RegsIcons[i].T_Name, RegNameSize + 1, RegsIcons[i].V_Name);
 		ChTextBGColour(RegsWin, RegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
 		RegsIcons[i].I_Val = TextIconCreate(RegsWin, 20 + CharSizeX * 10,
-				20 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val);
+				20 + LinSizeY * i, CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val, PrintedWordSize + 1, RegsIcons[i].V_Val);
 		ChTextBGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_LIGHT_GREY);
 	}
 
 	i = 19;
 	RegsIcons[i].I_Name = TextIconCreate(RegsWin, 10, 35 + LinSizeY * i, CharSizeX * 8,
-		CharSizeY, RegsIcons[i].T_Name);
+		CharSizeY, RegsIcons[i].T_Name, RegNameSize + 1, RegsIcons[i].V_Name);
 	ChTextBGColour(RegsWin, RegsIcons[i].I_Name, wimp_COLOUR_DARK_GREY);
 	RegsIcons[i].I_Val = TextIconCreate(RegsWin, 20 + CharSizeX * 10, 35 + LinSizeY * i,
-		CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val);
+		CharSizeX * 10, CharSizeY, RegsIcons[i].T_Val, PrintedWordSize + 1, RegsIcons[i].V_Val);
 	ChTextBGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_DARK_GREY);
 
 	RegsWinRedraw(RegsWin);

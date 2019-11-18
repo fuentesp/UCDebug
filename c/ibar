@@ -32,7 +32,6 @@
 #include <stdlib.h>
 
 #include "ibar.h"
-#include "main.h"
 
 /* Info dialog vars */
 struct InfoType InfoIcons[8];
@@ -157,11 +156,13 @@ wimp_w open_window(char *Title, int SizeX, int SizeY, int PosX, int PosY, int Vi
  * - WinHandle: pointer to the window handle where the icon will be placed
  * - Position (X and Y): coordinates in OS points from the icon top left corner
  * - Width and Height: size of the icon in OS points
- * - Text: pointer to the variable with the text to display
+ * - Text: pointer to the variable with the text to display. It must have a long life.
+ * - Length: size of the string with the text to be displayed (this is the max length, not
+ * 		necessarily the size of the initial value).
  * The function returns a pointer to the icon handler.
  */
 wimp_i TextIconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height,
-		char *Text) {
+		char *Text, int Length, char *Validation) {
 	wimp_icon_create icon_definition;
 
 	icon_definition.w = WinHandle;
@@ -171,18 +172,32 @@ wimp_i TextIconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Heigh
 	icon_definition.icon.extent.y1 = -PosY;
 	icon_definition.icon.flags = wimp_ICON_TEXT | wimp_ICON_VCENTRED | wimp_ICON_FILLED
 			| wimp_ICON_INDIRECTED | (wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT)
-			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
-			| (wimp_COLOUR_VERY_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
+			| wimp_ICON_ANTI_ALIASED | (AppFont << wimp_ICON_FONT_HANDLE_SHIFT);
 
 	icon_definition.icon.data.indirected_text.text = Text;
-	icon_definition.icon.data.indirected_text.size = strlen(Text);
-	icon_definition.icon.data.indirected_text.validation = "";
+	icon_definition.icon.data.indirected_text.size = Length;
+	snprintf(Validation, 4, "F%01X%01X", wimp_COLOUR_VERY_LIGHT_GREY, wimp_COLOUR_BLACK);
+	icon_definition.icon.data.indirected_text.validation = Validation;
 
 	return wimp_create_icon(&icon_definition);
 }
 
-wimp_i IconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height, int flags,
-		char *Text, char *Validation) {
+/* IconCreate creates an icon in a given window, using the default font in the desktop.
+ * 	It is mainly used to create the app menu. It receives the following parameters:
+ * - WinHandle: pointer to the window handle where the icon will be placed
+ * - Position (X and Y): coordinates in OS points from the icon top left corner
+ * - Width and Height: size of the icon in OS points
+ * - Flags: flags to be used in the creation of the icon (this is, the properties of the
+ * 		icon as defined in OSLib).
+ * - Text: pointer to the variable with the text to display. It must have a long life.
+ * - Length: size of the string with the text to be displayed (this is the max length, not
+ * 		necessarily the size of the initial value).//FIXME: not included!
+ * - Validation: string with the validation field. This is used to define additional
+ * 		properties of the icon. It must have a long life.
+ * The function returns a pointer to the icon handler.
+ */
+wimp_i IconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height, int Flags,
+		char *Text, int Length, char *Validation) {
 	wimp_icon_create icon_definition;
 
 	icon_definition.w = WinHandle;
@@ -190,13 +205,13 @@ wimp_i IconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height, i
 	icon_definition.icon.extent.y0 = -(PosY + Height);
 	icon_definition.icon.extent.x1 = PosX + Width;
 	icon_definition.icon.extent.y1 = -PosY;
-	icon_definition.icon.flags = flags;
+	icon_definition.icon.flags = Flags;
 
-	if ((flags & wimp_ICON_INDIRECTED) == 0) {
-		strncpy(icon_definition.icon.data.text, Text, 12);
+	if ((Flags & wimp_ICON_INDIRECTED) == 0) {
+		strncpy(icon_definition.icon.data.text, Text, 11);
 	} else {
 		icon_definition.icon.data.indirected_text.text = Text;
-		icon_definition.icon.data.indirected_text.size = strlen(Text);
+		icon_definition.icon.data.indirected_text.size = Length;
 		icon_definition.icon.data.indirected_text.validation = Validation;
 	}
 
@@ -313,14 +328,24 @@ void IconiseWindow(wimp_w WinHandle) {
 
 /* ChTextFGColour changes the foreground color of a given icon */
 void ChTextFGColour(wimp_w WinHandle, wimp_i IconHandle, int color) {
-	wimp_set_icon_state(WinHandle, IconHandle, color << wimp_ICON_FG_COLOUR_SHIFT,
-			wimp_ICON_FG_COLOUR);
+	wimp_icon_state i_s;
+	i_s.w = WinHandle;
+	i_s.i = IconHandle;
+	wimp_get_icon_state(&i_s);
+	int bg_col;
+	sscanf(i_s.icon.data.indirected_text.validation, "F%1x", &bg_col);
+	snprintf(i_s.icon.data.indirected_text.validation, 4, "F%01X%01X", bg_col, color);
 }
 
-/* ChTextFGColour changes the background color of a given icon */
-void ChTextBGColour(wimp_w Hand_Win, wimp_i IconHandle, int color) {
-	wimp_set_icon_state(Hand_Win, IconHandle, color << wimp_ICON_BG_COLOUR_SHIFT,
-			wimp_ICON_BG_COLOUR);
+/* ChTextBGColour changes the background color of a given icon */
+void ChTextBGColour(wimp_w WinHandle, wimp_i IconHandle, int color) {
+	wimp_icon_state i_s;
+	i_s.w = WinHandle;
+	i_s.i = IconHandle;
+	wimp_get_icon_state(&i_s);
+	int fg_col;
+	sscanf(i_s.icon.data.indirected_text.validation, "F%*1x%1x", &fg_col);
+	snprintf(i_s.icon.data.indirected_text.validation, 4, "F%01X%01X", color, fg_col);
 }
 
 /* Create the dialog box with the program info */
@@ -359,28 +384,39 @@ wimp_w OpenInfoDialog() {
 	W = wimp_create_window(&InfoWin);
 
 	Iflags = wimp_ICON_TEXT | wimp_ICON_VCENTRED | wimp_ICON_RJUSTIFIED
+			| wimp_ICON_INDIRECTED
 			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 			| (wimp_COLOUR_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
-	strncpy(InfoIcons[0].Text, "Name", 12);
-	strncpy(InfoIcons[1].Text, "Purpose", 12);
-	strncpy(InfoIcons[2].Text, "Author", 12);
-	strncpy(InfoIcons[3].Text, "Version", 12);
+	strncpy(InfoIcons[0].Text, "Name", InfoTextSize + 1);
+	strncpy(InfoIcons[0].Validation, "", InfoTextSize + 1);
+	strncpy(InfoIcons[1].Text, "Purpose", InfoTextSize + 1);
+	strncpy(InfoIcons[1].Validation, "", InfoTextSize + 1);
+	strncpy(InfoIcons[2].Text, "Author", InfoTextSize + 1);
+	strncpy(InfoIcons[2].Validation, "", InfoTextSize + 1);
+	strncpy(InfoIcons[3].Text, "Version", InfoTextSize + 1);
+	strncpy(InfoIcons[3].Validation, "", InfoTextSize + 1);
 	for (i = 0; i < 4; i++) {
-		IconCreate(W, 4, 16 + 60 * i, 140, 44, Iflags, InfoIcons[i].Text, "");
+		//strncpy(InfoIcons[i].Validation, "", 2); // Copying inside loop gives SegFaults when compiled with O2
+		IconCreate(W, 4, 16 + 60 * i, 140, 44, Iflags, InfoIcons[i].Text, InfoTextSize + 1, InfoIcons[i].Validation);
 	}
 
 	Iflags = wimp_ICON_TEXT | wimp_ICON_BORDER | wimp_ICON_HCENTRED | wimp_ICON_VCENTRED
 			| wimp_ICON_FILLED | wimp_ICON_INDIRECTED
 			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 			| (wimp_COLOUR_VERY_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
-	strncpy(InfoIcons[4].Text, AppName, sizeof(InfoIcons[4].Text));
-	strncpy(InfoIcons[5].Text, AppPurpose, sizeof(InfoIcons[5].Text));
-	strncpy(InfoIcons[6].Text, AppAuthors, sizeof(InfoIcons[6].Text));
-	strncpy(InfoIcons[7].Text, AppVersion, sizeof(InfoIcons[7].Text));
+	strncpy(InfoIcons[4].Text, AppName, InfoTextSize + 1);
+	strncpy(InfoIcons[4].Validation, "R2", InfoTextSize + 1);
+	strncpy(InfoIcons[5].Text, AppPurpose, InfoTextSize + 1);
+	strncpy(InfoIcons[5].Validation, "R2", InfoTextSize + 1);
+	strncpy(InfoIcons[6].Text, AppAuthors, InfoTextSize + 1);
+	strncpy(InfoIcons[6].Validation, "R2", InfoTextSize + 1);
+	strncpy(InfoIcons[7].Text, AppVersion, InfoTextSize + 1);
+	strncat(InfoIcons[7].Text, AppDate, InfoTextSize + 1 - sizeof(AppVersion));
+	strncpy(InfoIcons[7].Validation, "R2", InfoTextSize + 1);
 	for (i = 0; i < 4; i++) {
 		j = i + 4;
-		strncpy(InfoIcons[j].Validation, "R2", 3);
-		IconCreate(W, 152, 12 + 60 * i, 540, 52, Iflags, InfoIcons[j].Text,
+		//strncpy(InfoIcons[j].Validation, "R2", InfoTextSize + 1); // Copying inside loop gives SegFaults when compiled with O2
+		IconCreate(W, 152, 12 + 60 * i, 540, 52, Iflags, InfoIcons[j].Text, InfoTextSize + 1,
 				InfoIcons[j].Validation);
 	}
 
