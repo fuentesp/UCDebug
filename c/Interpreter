@@ -32,6 +32,7 @@
 #include "Interpreter.h"
 #include "ConsWin.h" /* To have access to the definition of UsrWinCreate function */
 #include "main.h" /* To use general vars */
+#include "help.h" /* To use console help strings */
 
 /* List of commands */
 #define LOAD_CMD "ld"
@@ -84,7 +85,7 @@
 #define UKN_EX_MSG			"ERROR!: non-contemplated exception at the interpreter: 0x%06X"
 
 /* Auxiliar strings */
-#define alphabet	"abcdefghijklmnopqrstuvwxyz+-*/.¡!¿?$%&()[]"
+#define alphabet	"abcdefghijklmnopqrstuvwxyz+-*/.Â¡!Â¿?$%&()[]"
 
 /* Local functions */
 void runCode();
@@ -121,8 +122,7 @@ void interpreter(char *linea) {
 	/* Check the command */
 	if (strcmp(args[0], LOAD_CMD) == 0) {
 		if (nargs < 2) {
-			strncpy(aux_msg, MISSING_ARGS_MSG, ConsLinSize);
-			strncat(aux_msg, LOAD_ARGS_MSG, sizeof(aux_msg) - sizeof(MISSING_ARGS_MSG));
+			snprintf(aux_msg, ConsLinSize + 1, "%s%s", MISSING_ARGS_MSG, LOAD_ARGS_MSG);
 			ConsWrite(ConsWin, aux_msg);
 		} else {
 			loadFile(args[1]);
@@ -131,7 +131,7 @@ void interpreter(char *linea) {
 		if (nargs > 1) { /* Start executing the code from a given address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -150,7 +150,7 @@ void interpreter(char *linea) {
 		 is given, start executing the code from the default initial address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -168,7 +168,7 @@ void interpreter(char *linea) {
 		 is given, start executing the code from the default initial address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -187,7 +187,7 @@ void interpreter(char *linea) {
 				is given, start executing from the current address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				return;
 			} else if (!alignedAddr(addr)) {
@@ -207,7 +207,7 @@ void interpreter(char *linea) {
 		}
 		addr = getAddr(args[1]);
 		if (!validMemAddressRange(addr)) {
-			snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+			snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 			ConsWrite(ConsWin, aux_msg);
 			return;
 		} else if (!alignedAddr(addr)) {
@@ -230,7 +230,7 @@ void interpreter(char *linea) {
 			/* Toggle breakpoint */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -249,7 +249,7 @@ void interpreter(char *linea) {
 			/* Reset memory view, starting from specified address */
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -266,14 +266,14 @@ void interpreter(char *linea) {
 			} else {
 				addr = getAddr(strtok(args[i], ASSIGN_DELIMITER));
 				if (!validMemAddressRange(addr)) {
-					snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+					snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 					ConsWrite(ConsWin, aux_msg);
 					continue;
 				}
 				val = getVal(strtok(NULL, ASSIGN_DELIMITER));
 				setMem(addr, val, size);
 				if (addr < AddrDataStart) {
-					snprintf(aux_msg, ConsLinSize, CODE_ADDR_MSG, addr, AddrDataStart);
+					snprintf(aux_msg, ConsLinSize + 1, CODE_ADDR_MSG, addr, AddrDataStart);
 					ConsWrite(ConsWin, aux_msg);
 				}
 			}
@@ -303,7 +303,7 @@ void interpreter(char *linea) {
 		} else {
 			addr = getAddr(args[1]);
 			if (!validMemAddressRange(addr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, addr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 			} else if (!alignedAddr(addr))
 				ConsWrite(ConsWin, UNALIGN_ADDR_MSG);
@@ -324,146 +324,77 @@ void interpreter(char *linea) {
 }
 
 void help() {
-	char help_msg[ConsLinSize];
+	char *help_msg;
+	help_msg = malloc(ConsLinSize + 1);
 	ConsWrite(ConsWin, "List of commands:");
-	strncpy(help_msg, ABOUT_CMD, ConsLinSize);
-	strncat(help_msg, "                        prints the list of authors of the debugger",
-			sizeof(help_msg) - sizeof(ABOUT_CMD));
-	strncpy(help_msg, LOAD_CMD, ConsLinSize);
-	strncat(help_msg, " file_name           load the assembly file onto the debugger",
-			sizeof(help_msg) - sizeof(LOAD_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                  print the authors of the debugger", ABOUT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, TRACE_CMD, sizeof(help_msg));
-	strncat(help_msg, "                     execute a single instruction",
-			sizeof(help_msg) - sizeof(TRACE_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s file_name           load the assembly file onto the debugger", LOAD_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, TRACE_CMD, sizeof(help_msg));
-	strncat(help_msg, "  <addr>             execute the single instruction in <addr>",
-			sizeof(help_msg) - sizeof(TRACE_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                     execute a single instruction", TRACE_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_CMD, sizeof(help_msg));
-	strncat(help_msg, "                     execute from the first instruction",
-			sizeof(help_msg) - sizeof(RUN_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s  <addr>             execute the single instruction in <addr>", TRACE_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>              execute from the instruction in <addr>",
-			sizeof(help_msg) - sizeof(RUN_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                     execute from the first instruction", RUN_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_FAST_CMD, sizeof(help_msg));
-	strncat(help_msg, "                     fast execution (beta mode)",
-			sizeof(help_msg) - sizeof(RUN_FAST_CMD) - 1);
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>              execute from the instruction in <addr>", RUN_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_FAST_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>              fast execution from <addr> (beta mode)",
-			sizeof(help_msg) - sizeof(RUN_FAST_CMD) - 1);
+	snprintf(help_msg, ConsLinSize + 1, "%s                     fast execution (beta mode)", RUN_FAST_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_DIRECT_CMD, sizeof(help_msg));
-	strncat(help_msg, "                     execute from the first instruction",
-			sizeof(help_msg) - sizeof(RUN_DIRECT_CMD) - 1);
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>              fast execution from <addr> (beta mode)", RUN_FAST_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       without stopping at the breakpoints",
-			sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s                     execute from the first instruction", RUN_DIRECT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_DIRECT_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>              execute from the instruction in <addr>",
-			sizeof(help_msg) - sizeof(RUN_DIRECT_CMD) - 1);
+	snprintf(help_msg, ConsLinSize + 1, "                       without stopping at the breakpoints");
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       without stopping at the breakpoints",
-			sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>              execute from the instruction in <addr>", RUN_DIRECT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, RUN_TO_CMD, sizeof(help_msg));
-	strncat(help_msg, " ", sizeof(help_msg) - sizeof(RUN_TO_CMD));
-	strncat(help_msg, " <addr>             execute without stopping at breakpoints",
-			sizeof(help_msg) - sizeof(RUN_TO_CMD) - 1);
+	snprintf(help_msg, ConsLinSize + 1, "                       without stopping at the breakpoints");
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       until <addr> is reached", sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>              execute without stopping at breakpoints", RUN_TO_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, BRKPT_CMD, sizeof(help_msg));
-	strncat(help_msg, "                     list the breakpoints currently set",
-			sizeof(help_msg) - sizeof(BRKPT_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "                       until <addr> is reached");
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, BRKPT_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>              toggle a breakpoint at <addr>",
-			sizeof(help_msg) - sizeof(BRKPT_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                     list the breakpoints currently set", BRKPT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, CLR_BRKPT_CMD, sizeof(help_msg));
-	strncat(help_msg, "                    clear all breakpoints",
-			sizeof(help_msg) - sizeof(CLR_BRKPT_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>              toggle a breakpoint at <addr>", BRKPT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, STOP_CMD, sizeof(help_msg));
-	strncat(help_msg, "                   stop the execution",
-			sizeof(help_msg) - sizeof(STOP_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                    clear all breakpoints", CLR_BRKPT_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, SET_CMD, sizeof(help_msg));
-	strncat(help_msg, " [<s>] <addr>=<val> replace <s> bytes of memory content",
-			sizeof(help_msg) - sizeof(MEM_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                   stop the execution", STOP_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       (default=32bits) at <addr> with <val>",
-			sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s [<s>] <addr>=<val> replace <s> bytes of memory content", SET_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, REG_CMD, sizeof(help_msg));
-	strncat(help_msg, " <reg>=<val>        replace the value of the register",
-			sizeof(help_msg) - sizeof(MEM_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "                       (default=32bits) at <addr> with <val>");
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, MEM_CMD, sizeof(help_msg));
-	strncat(help_msg, "                    reset the memory view window",
-			sizeof(help_msg) - sizeof(MEM_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s <reg>=<val>        replace the value of the register", REG_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, MEM_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>             reset the memory view window, starting",
-			sizeof(help_msg) - sizeof(MEM_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                    reset the memory view window", MEM_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       from <addr>", sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>             reset the memory view window, starting", MEM_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, CODE_CMD, sizeof(help_msg));
-	strncat(help_msg, "                   reset the code view window",
-			sizeof(help_msg) - sizeof(CODE_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "                       from <addr>");
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, CODE_CMD, sizeof(help_msg));
-	strncat(help_msg, " <addr>            reset the code view window, starting from",
-			sizeof(help_msg) - sizeof(CODE_CMD));
+	snprintf(help_msg, ConsLinSize + 1, "%s                   reset the code view window", CODE_CMD);
 	ConsWrite(ConsWin, help_msg);
-	strncpy(help_msg, "                       <addr>", sizeof(help_msg));
+	snprintf(help_msg, ConsLinSize + 1, "%s <addr>            reset the code view window, starting from", CODE_CMD);
 	ConsWrite(ConsWin, help_msg);
+	snprintf(help_msg, ConsLinSize + 1, "                       <addr>");
+	ConsWrite(ConsWin, help_msg);
+	free(help_msg);
 }
 
 void printAuthors() {
-	char *msg;
-	msg = malloc(ConsLinSize);
-	strncpy(msg, "!UCDebug, ARM debugger for RISC OS.", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "https://github.com/fuentesp/UCDebug", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "Copyright (C) 2018 University of Cantabria", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "This debugger has been developed by the Computer Architecture", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "and Technology Group - Grupo de Arquitectura y Tecnología de", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "Computadores (ATC), at the University of Cantabria.", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	ConsWrite(ConsWin, "");
-	strncpy(msg, "Main Developers:", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "-Cristóbal Camarero Coterillo", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "-Fernando Vallejo Alonso", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "-Pablo Fuentes Sáez", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	ConsWrite(ConsWin, "");
-	strncpy(msg, "Contributors:", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "-Carmen Martínez Fernández, head of the project that has led to", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "the development of this debugger.", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "-Jesús Gutiérrez Preciado, Elena Zaira Suárez Santamaría and", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "Adrián Barredo Ferreira, prior work with RISC OS and the", ConsLinSize);
-	ConsWrite(ConsWin, msg);
-	strncpy(msg, "Raspberry Pi.", ConsLinSize);
-	ConsWrite(ConsWin, msg);
+	char *msg, *aux_msg, *copy = strdup(about_msg);
+	msg = malloc(ConsLinSize + 1);
+
+	aux_msg = strtok(copy, "\n");
+	while (aux_msg != NULL) {
+		snprintf(msg, ConsLinSize + 1, aux_msg);
+		ConsWrite(ConsWin, msg);
+		aux_msg = strtok(NULL, "\n");
+	}
+
 	free(msg);
 }
 
@@ -473,7 +404,7 @@ void loadFile(char *filename) {
 	stat(filename, &path_stat);
 
 	long flength;
-	char aux_msg[ConsLinSize], aux_msg2[ConsLinSize];
+	char aux_msg[ConsLinSize + 1], aux_msg2[ConsLinSize + 1];
 
 	if (S_ISREG(path_stat.st_mode)) {
 		FILE *file = fopen(filename, "rb");
@@ -483,7 +414,7 @@ void loadFile(char *filename) {
 			char auxBuf[4];
 			fread(auxBuf, 1, 4, file);
 			if (*(int *) &auxBuf != ELF_FILE_BEG) {
-				strncpy(aux_msg, NOT_ELF_MSG, sizeof(aux_msg));
+				snprintf(aux_msg, ConsLinSize + 1, NOT_ELF_MSG);
 			} else {
 				/*Check if link addresses are correct */
 				fseek(file, OffElfHeadSize, SEEK_SET);
@@ -492,14 +423,14 @@ void loadFile(char *filename) {
 				fseek(file, elfSize + OffVirtAddr, SEEK_SET);
 				fread(auxBuf, 1, 4, file);
 				if (*(int *) &auxBuf != AddrElfFile) {
-					sprintf(aux_msg, "%s 0x%08X", MIS_LINKED_MSG, AddrElfFile);
+					snprintf(aux_msg, ConsLinSize + 1, "%s 0x%08X", MIS_LINKED_MSG, AddrElfFile);
 				} else {
 					/* Check if ELF file fits in debugging area */
 					fseek(file, 0, SEEK_END);
 					flength = ftell(file);
 					fseek(file, 0, SEEK_SET);
 					if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
-						sprintf(aux_msg, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
+						snprintf(aux_msg, ConsLinSize + 1, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
 								DebugAreaSize);
 					} else {
 						/* Load ELF file and update data and code windows */
@@ -520,10 +451,8 @@ void loadFile(char *filename) {
 						/* If data section starts out of range, set a default @ */
 						if (!validMemAddressRange(AddrDataStart))
 							AddrDataStart = AddrCodeEnd;
-						flength = sizeof(aux_msg)-strlen(SUCC_LOAD_MSG)+1;
-						strncpy(aux_msg2, filename, flength);
-						aux_msg2[flength] = 0;
-						snprintf(aux_msg, sizeof(aux_msg), SUCC_LOAD_MSG, aux_msg2);
+						snprintf(aux_msg2, ConsLinSize - strlen(SUCC_LOAD_MSG) + 2, "%s", filename);
+						snprintf(aux_msg, ConsLinSize + 1, SUCC_LOAD_MSG, aux_msg2);
 					}
 				}
 			}
@@ -532,10 +461,8 @@ void loadFile(char *filename) {
 	} else {
 		/* Max length of the path shown: add 2 to account for the '%s' characters in the
 		 * msg that are replaced with the string, substract 1 for the null char */
-		flength = sizeof(aux_msg)-strlen(NOT_FILE_MSG)+1;
-		strncpy(aux_msg2, filename, flength);
-		aux_msg2[flength] = 0;
-		snprintf(aux_msg, sizeof(aux_msg), NOT_FILE_MSG, aux_msg2);
+		snprintf(aux_msg2, ConsLinSize - strlen(NOT_FILE_MSG) + 2, "%s", filename);
+		snprintf(aux_msg, ConsLinSize + 1, NOT_FILE_MSG, aux_msg2);
 	}
 	ConsWrite(ConsWin, aux_msg); /* Write notification message of the outcome */
 	resetCodeView();
@@ -690,7 +617,7 @@ unsigned int getVal(char *str) {
 
 /* setMem assigns a value to a given memory address, following a specific size */
 void setMem(int addr, int val, int size) {
-	char auxMsg[ConsLinSize];
+	char auxMsg[ConsLinSize + 1];
 	/* Check if the value is a byte, a half, or a word, and
 	 ensure the address is properly aligned */
 	switch (size) {
@@ -755,7 +682,7 @@ void runCode() {
 }
 
 void HandleSWI() {
-	char aux_msg[ConsLinSize];
+	char aux_msg[ConsLinSize + 1];
 	char* ptr;
 	int i;
 	switch (ExecType & SWI_Ex_Mask) {
@@ -773,7 +700,7 @@ void HandleSWI() {
 		case SWI_WrL: /* WriteString */
 			ptr = (char *) CurContext.Regs[0];
 			if (!validMemAddressRange((int) ptr)) {
-				snprintf(aux_msg, ConsLinSize, INV_ADDR_MSG, (int) ptr, DebugAreaStart, DebugAreaEnd);
+				snprintf(aux_msg, ConsLinSize + 1, INV_ADDR_MSG, (int) ptr, DebugAreaStart, DebugAreaEnd);
 				ConsWrite(ConsWin, aux_msg);
 				ExecType = Stop_Ex; /* Stop execution */
 				CurContext.Regs[15] -= 4; /* PC = PC - 4, to null the PC+4 in ExecMod */
@@ -829,7 +756,7 @@ void HandleSWI() {
 }
 
 void HandleException() {
-	char aux_msg[ConsLinSize];
+	char aux_msg[ConsLinSize + 1];
 
 	switch (ExecType & StateByteMask) {
 		case Stop_Br: /* Reached breakpoint */

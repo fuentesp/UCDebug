@@ -57,13 +57,15 @@ void ibar_initialise(void) {
 	icon_bar.icon.extent.y1 = 68;
 	icon_bar.icon.flags = wimp_ICON_SPRITE
 			| (wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT);
-	strncpy(icon_bar.icon.data.sprite, SpriteName, osspriteop_NAME_LIMIT);
+	snprintf(icon_bar.icon.data.sprite, osspriteop_NAME_LIMIT, SpriteName);
 	wimp_create_icon(&icon_bar);
 
 	InitialiseIconbarMenu();
 }
 
 /* open_window creates and opens a window. It receives the following parameters:
+ * - Title: a string that contains the text in the window title. Must live as
+ * 		long as the debugger is open.
  * - Position (X and Y): the coordinates in OS points from the bottom left corner
  * 		(position of that corner)
  * - Visible (X and Y): the dimensions of the visible area
@@ -130,7 +132,7 @@ wimp_w open_window(char *Title, int SizeX, int SizeY, int PosX, int PosY, int Vi
 	window_definition.extent.y1 = 0;
 
 	window_definition.title_flags = wimp_ICON_TEXT | wimp_ICON_BORDER | wimp_ICON_HCENTRED
-			| wimp_ICON_VCENTRED | wimp_ICON_FILLED;
+			| wimp_ICON_VCENTRED | wimp_ICON_FILLED | wimp_ICON_INDIRECTED;
 	window_definition.work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
 
 	window_definition.sprite_area = wimpspriteop_AREA;
@@ -138,7 +140,10 @@ wimp_w open_window(char *Title, int SizeX, int SizeY, int PosX, int PosY, int Vi
 	window_definition.xmin = 16;
 	window_definition.ymin = 16;
 
-	strncpy(window_definition.title_data.text, Title, 12);
+	window_definition.title_data.indirected_text.text = Title;
+	window_definition.title_data.indirected_text.size = WinTitleSize;
+	window_definition.title_data.indirected_text.validation = malloc(ValStrSize);
+	snprintf(window_definition.title_data.indirected_text.validation, ValStrSize, "");
 
 	window_definition.icon_count = 0;
 
@@ -191,7 +196,7 @@ wimp_i TextIconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Heigh
  * 		icon as defined in OSLib).
  * - Text: pointer to the variable with the text to display. It must have a long life.
  * - Length: size of the string with the text to be displayed (this is the max length, not
- * 		necessarily the size of the initial value).//FIXME: not included!
+ * 		necessarily the size of the initial value).
  * - Validation: string with the validation field. This is used to define additional
  * 		properties of the icon. It must have a long life.
  * The function returns a pointer to the icon handler.
@@ -208,7 +213,7 @@ wimp_i IconCreate(wimp_w WinHandle, int PosX, int PosY, int Width, int Height, i
 	icon_definition.icon.flags = Flags;
 
 	if ((Flags & wimp_ICON_INDIRECTED) == 0) {
-		strncpy(icon_definition.icon.data.text, Text, 11);
+		snprintf(icon_definition.icon.data.text, osspriteop_NAME_LIMIT, Text);
 	} else {
 		icon_definition.icon.data.indirected_text.text = Text;
 		icon_definition.icon.data.indirected_text.size = Length;
@@ -320,7 +325,7 @@ void IconiseWindow(wimp_w WinHandle) {
 	umsg.action = message_ICONISE;
 	*((wimp_w *) (&(umsg.data))) = WinHandle;
 	*((wimp_t *) ((unsigned int) &(umsg.data) + 4)) = AppTask;
-	strncpy(((char *) ((unsigned int) &(umsg.data) + 8)), info->title_data.text, 12);
+	snprintf(((char *) ((unsigned int) &(umsg.data) + 8)), osspriteop_NAME_LIMIT, info->title_data.text);
 	wimp_send_message(wimp_USER_MESSAGE, &umsg, wimp_BROADCAST);
 
 	free(info);
@@ -387,16 +392,12 @@ wimp_w OpenInfoDialog() {
 			| wimp_ICON_INDIRECTED
 			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 			| (wimp_COLOUR_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
-	strncpy(InfoIcons[0].Text, "Name", InfoTextSize + 1);
-	strncpy(InfoIcons[0].Validation, "", InfoTextSize + 1);
-	strncpy(InfoIcons[1].Text, "Purpose", InfoTextSize + 1);
-	strncpy(InfoIcons[1].Validation, "", InfoTextSize + 1);
-	strncpy(InfoIcons[2].Text, "Author", InfoTextSize + 1);
-	strncpy(InfoIcons[2].Validation, "", InfoTextSize + 1);
-	strncpy(InfoIcons[3].Text, "Version", InfoTextSize + 1);
-	strncpy(InfoIcons[3].Validation, "", InfoTextSize + 1);
+	snprintf(InfoIcons[0].Text, InfoTextSize + 1, "Name");
+	snprintf(InfoIcons[1].Text, InfoTextSize + 1, "Purpose");
+	snprintf(InfoIcons[2].Text, InfoTextSize + 1, "Author");
+	snprintf(InfoIcons[3].Text, InfoTextSize + 1, "Version");
 	for (i = 0; i < 4; i++) {
-		//strncpy(InfoIcons[i].Validation, "", 2); // Copying inside loop gives SegFaults when compiled with O2
+		snprintf(InfoIcons[i].Validation, InfoTextSize + 1, "");
 		IconCreate(W, 4, 16 + 60 * i, 140, 44, Iflags, InfoIcons[i].Text, InfoTextSize + 1, InfoIcons[i].Validation);
 	}
 
@@ -404,28 +405,17 @@ wimp_w OpenInfoDialog() {
 			| wimp_ICON_FILLED | wimp_ICON_INDIRECTED
 			| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 			| (wimp_COLOUR_VERY_LIGHT_GREY << wimp_ICON_BG_COLOUR_SHIFT);
-	strncpy(InfoIcons[4].Text, AppName, InfoTextSize + 1);
-	strncpy(InfoIcons[4].Validation, "R2", InfoTextSize + 1);
-	strncpy(InfoIcons[5].Text, AppPurpose, InfoTextSize + 1);
-	strncpy(InfoIcons[5].Validation, "R2", InfoTextSize + 1);
-	strncpy(InfoIcons[6].Text, AppAuthors, InfoTextSize + 1);
-	strncpy(InfoIcons[6].Validation, "R2", InfoTextSize + 1);
-	strncpy(InfoIcons[7].Text, AppVersion, InfoTextSize + 1);
-	strncat(InfoIcons[7].Text, AppDate, InfoTextSize + 1 - sizeof(AppVersion));
-	strncpy(InfoIcons[7].Validation, "R2", InfoTextSize + 1);
+	snprintf(InfoIcons[4].Text, InfoTextSize + 1, "%s", AppName);
+	snprintf(InfoIcons[5].Text, InfoTextSize + 1, "%s", AppPurpose);
+	snprintf(InfoIcons[6].Text, InfoTextSize + 1, "%s", AppAuthors);
+	snprintf(InfoIcons[7].Text, InfoTextSize + 1, "%s", AppVersion);
+	strncat(InfoIcons[7].Text, AppDate, InfoTextSize - sizeof(AppVersion));
 	for (i = 0; i < 4; i++) {
 		j = i + 4;
-		//strncpy(InfoIcons[j].Validation, "R2", InfoTextSize + 1); // Copying inside loop gives SegFaults when compiled with O2
+		snprintf(InfoIcons[j].Validation, InfoTextSize + 1, "R2");
 		IconCreate(W, 152, 12 + 60 * i, 540, 52, Iflags, InfoIcons[j].Text, InfoTextSize + 1,
 				InfoIcons[j].Validation);
 	}
-
-	/* Get the state of the dialog window to ensure it works correctly.
-	 * Otherwise, Debugger crashes when the 'Info' entry in the icon menu is
-	 * clicked. */ // UPDATE: now it apparently does not need it anymore?
-	wimp_window_state state;
-	state.w = W;
-	wimp_get_window_state(&state);
 
 	return W;
 }
@@ -438,7 +428,7 @@ void InitialiseIconbarMenu() {
 	int i, j, c;
 	char *aux;
 	IconBarMenu = malloc(num_menu_options * sizeof(wimp_menu));
-	strncpy(IconBarMenu->title_data.text, AppName, MenuEntryLen);
+	snprintf(IconBarMenu->title_data.text, MenuEntryLen, AppName);
 	IconBarMenu->title_fg = wimp_COLOUR_BLACK;
 	IconBarMenu->title_bg = wimp_COLOUR_LIGHT_GREY;
 	IconBarMenu->work_fg = wimp_COLOUR_BLACK;
@@ -465,8 +455,7 @@ void InitialiseIconbarMenu() {
 				aux = strpbrk(aux + 1, submenu_separator);
 			}
 			IconBarMenu->entries[i].sub_menu = malloc(c * sizeof(wimp_menu));
-			strncpy(IconBarMenu->entries[i].sub_menu->title_data.text, menu_options[i],
-					MenuEntryLen);
+			snprintf(IconBarMenu->entries[i].sub_menu->title_data.text, MenuEntryLen, menu_options[i]);
 			IconBarMenu->entries[i].sub_menu->title_fg = wimp_COLOUR_BLACK;
 			IconBarMenu->entries[i].sub_menu->title_bg = wimp_COLOUR_LIGHT_GREY;
 			IconBarMenu->entries[i].sub_menu->work_fg = wimp_COLOUR_BLACK;
@@ -487,17 +476,16 @@ void InitialiseIconbarMenu() {
 						| wimp_ICON_VCENTRED | wimp_ICON_FILLED | wimp_ICON_TEXT
 						| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 						| (wimp_COLOUR_WHITE << wimp_ICON_BG_COLOUR_SHIFT);
-				strncpy(IconBarMenu->entries[i].sub_menu->entries[j].data.text, aux,
-						MenuEntryLen);
+				snprintf(IconBarMenu->entries[i].sub_menu->entries[j].data.text, MenuEntryLen, aux);
 				aux = strtok(NULL, submenu_separator);
 			}
-			free(aux2);
+			//free(aux2); //FIXME: is it necessary to free up the allocation?
 		}
 		IconBarMenu->entries[i].icon_flags = wimp_ICON_TEXT | wimp_ICON_VCENTRED
 				| wimp_ICON_FILLED | wimp_ICON_TEXT
 				| (wimp_COLOUR_BLACK << wimp_ICON_FG_COLOUR_SHIFT)
 				| (wimp_COLOUR_WHITE << wimp_ICON_BG_COLOUR_SHIFT);
-		strncpy(IconBarMenu->entries[i].data.text, menu_options[i], MenuEntryLen);
+		snprintf(IconBarMenu->entries[i].data.text, MenuEntryLen, menu_options[i]);
 	}
 }
 

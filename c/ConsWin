@@ -29,6 +29,7 @@
 #include <string.h>
 /* Added C libraries to avoid warnings */
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "ibar.h"
 #include "main.h"
@@ -71,25 +72,26 @@ wimp_w ConsWinCreate(int PosX, int PosY) {
 
 	/* Initialize the command buffer */
 	for (i = 0; i < ComBufNumEntries; i++) {
-		strcpy(CommandBuffer[i], "");
+		snprintf(CommandBuffer[i], ConsLinSize + 1, "");
 	}
 	P_Buffer = 0;
 
-	ConsWin = open_window(ConsWinName, ConsWinSizeX, ConsLinTot * LinSizeY, PosX, PosY,
+	snprintf(ConsWinTitle, WinTitleSize, "%s - v%s", ConsWinName, AppVersion);
+	ConsWin = open_window(ConsWinTitle, ConsWinSizeX, ConsLinTot * LinSizeY, PosX, PosY,
 	ConsWinSizeX, ConsWinSizeY, 0, (ConsLinTot - ConsLinVis) * LinSizeY, 0x16);
 
 	for (i = 0; i < ConsLinTot - 1; i++) {
-		strncpy(Console.T_Lines[i], "", ConsLinSize);
+		snprintf(Console.T_Lines[i], ConsLinSize + 1, "");
 		Console.I_Lines[i] = TextIconCreate(ConsWin, 10, 5 + LinSizeY * i,
 		CharSizeX * ConsLinSize, CharSizeY, Console.T_Lines[i], ConsLinSize + 1, Console.V_Lines[i]);
 	}
 
 	/* Define prompt icon */
-	strncpy(Console.T_Prompt, CurPrompt, PromptSize);
+	snprintf(Console.T_Prompt, PromptSize + 1, CurPrompt);
 	Console.I_Prompt = TextIconCreate(ConsWin, 10, 5 + LinSizeY * (ConsLinTot - 1),
 	CharSizeX * PromptSize, CharSizeY, Console.T_Prompt, PromptSize + 1, Console.V_Prompt);
 
-	strcpy(Console.T_LinInp, "");
+	snprintf(Console.T_LinInp, ConsLinSize - PromptSize + 1, "");
 	Console.I_LinInp = TextIconCreate(ConsWin, 10 + CharSizeX * PromptSize, 5 + LinSizeY * (ConsLinTot - 1),
 			CharSizeX * (ConsLinSize - PromptSize), CharSizeY, Console.T_LinInp, ConsLinSize - PromptSize, Console.V_LinInp);
 	wimp_set_icon_state(ConsWin, Console.I_LinInp, wimp_BUTTON_WRITABLE << wimp_ICON_BUTTON_TYPE_SHIFT,
@@ -106,7 +108,7 @@ void ConsEnterKey(wimp_w ConsWin) {
 
 	/* First scroll the command view */
 	for (i = 0; i < ConsLinTot - 2; i++) {
-		strcpy(Console.T_Lines[i], Console.T_Lines[i + 1]);
+		snprintf(Console.T_Lines[i], ConsLinSize + 1, "%s", Console.T_Lines[i + 1]);
 	}
 
 	/* Copy the input to the command buffer, unless line is empty or same as previous.
@@ -116,21 +118,20 @@ void ConsEnterKey(wimp_w ConsWin) {
 		for (i = ComBufNumEntries - 1; i > 0; i--) {
 			strcpy(CommandBuffer[i], CommandBuffer[i - 1]);
 		}
-		strcpy(CommandBuffer[0], Console.T_LinInp);
+		snprintf(CommandBuffer[0], ConsLinSize + 1, "%s", Console.T_LinInp);
 	}
 	P_Buffer = 0;
 
 	/* Copy input, clear prompt line and call CLI */
-	strcpy(Console.T_Lines[ConsLinTot - 2], Console.T_Prompt);
-	strcat(Console.T_Lines[ConsLinTot - 2], Console.T_LinInp);
-	strncpy(line, Console.T_LinInp, sizeof(line));
-	strcpy(Console.T_LinInp, "");
+	snprintf(Console.T_Lines[ConsLinTot - 2], ConsLinSize + 1, "%s%s", Console.T_Prompt, Console.T_LinInp);
+	snprintf(line, ConsLinSize + 1, "%s", Console.T_LinInp);
+	snprintf(Console.T_LinInp, ConsLinSize + 1, "");
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94, -3200, 34, 0);
 	UpdateWindow(ConsWin);
 	interpreter(line);
 
 	/* Write a new prompt, placing caret at the beginning of the line */
-	strncpy(Console.T_Prompt, CurPrompt, PromptSize);
+	snprintf(Console.T_Prompt, PromptSize + 1, CurPrompt);
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94, -3200, 34, 0);
 
 	/* Redraw window */
@@ -198,8 +199,8 @@ void ConsDownKey(wimp_w ConsWin) {
 /* If the "Escape" key is pressed, clear the current command in the command line. */
 void ConsEscapeKey(wimp_w ConsWin) {
 	P_Buffer = 0; // Reset from traversing the command buffer
-	strcpy(PendingCommandBackup, ""); // Clear pending command
-	strcpy(Console.T_LinInp, ""); // Clear current command
+	snprintf(PendingCommandBackup, ConsLinSize + 1, ""); // Clear pending command
+	snprintf(Console.T_LinInp, ConsLinSize + 1, ""); // Clear current command
 	int lineSize = strlen(Console.T_LinInp);
 	wimp_set_caret_position(ConsWin, Console.I_LinInp, 94 + 18 * lineSize, -3200, 34,
 		lineSize);
@@ -223,8 +224,7 @@ void ConsWrite(wimp_w ConsWin, char *text) {
 	}
 
 	/* Copy the given text in the last line */
-	strncpy(Console.T_Lines[ConsLinTot - 2], text,
-			sizeof(Console.T_Lines[ConsLinTot - 2]));
+	snprintf(Console.T_Lines[ConsLinTot - 2], ConsLinSize + 1, "%s", text);
 
 	/* Redraw window */
 	UpdateWindow(ConsWin);
@@ -234,8 +234,8 @@ void ConsWrite(wimp_w ConsWin, char *text) {
 /* Function to set the command prompt to RUN mode (small workaround to print RUN when
  the go command is executed) */
 void SetPrompt(char prompt[]) {
-	strncpy(CurPrompt, prompt, PromptSize);
-	strncpy(Console.T_Prompt, CurPrompt, PromptSize);
+	snprintf(CurPrompt, PromptSize + 1, prompt);
+	snprintf(Console.T_Prompt, PromptSize + 1, CurPrompt);
 	UpdateWindow(ConsWin);
 }
 
@@ -246,13 +246,14 @@ wimp_w UsrWinCreate(int PosX, int PosY) {
 	wimp_icon_create icon_definition;
 	int i;
 
-	UsrWin = open_window(UsrWinName, NumColUsrCon * CharSizeX, NumLinUsrCon * LinSizeY,
+	snprintf(UsrWinTitle, WinTitleSize, UsrWinName);
+	UsrWin = open_window(UsrWinTitle, NumColUsrCon * CharSizeX, NumLinUsrCon * LinSizeY,
 			PosX, PosY, UsrConsWinSizeX, UsrConsWinSizeY, 0,
 			(NumLinUsrCon - 10) * LinSizeY, 0x01E);
 
 	/* Initialize the window with empty lines */
 	for (i = 0; i < NumLinUsrCon; i++) {
-		strncpy(UsrCons.T_Lines[i], "", ConsLinSize);
+		snprintf(UsrCons.T_Lines[i], ConsLinSize + 1, "");
 		UsrCons.I_Lines[i] = TextIconCreate(UsrWin, 10, 5 + LinSizeY * i,
 		CharSizeX * NumColUsrCon, CharSizeY, UsrCons.T_Lines[i], ConsLinSize + 1, UsrCons.V_Lines[i]);
 	}

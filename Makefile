@@ -29,6 +29,7 @@ all: !UCDebug/!RunImage
 FLAGS=-O2
 
 HEADERS=CodeWin.h ConsWin.h DataWin.h FPRegsWin.h ibar.h Interpreter.h main.h RegsWin.h
+MSG_HEADERS=Help.h
 HEADERSS=Constants.s
 
 ib.o: ibar.c $(HEADERS)
@@ -49,7 +50,7 @@ FPWin.o: FPRegsWin.c $(HEADERS)
 CoWin.o: ConsWin.c $(HEADERS)
 	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o CoWin.o ConsWin.c
 
-In.o: Interpreter.c $(HEADERS)
+In.o: Interpreter.c $(HEADERS) $(MSG_HEADERS)
 	gcc $(FLAGS) -mfpu=vfp -c -IOSLib: -o In.o Interpreter.c
 
 Dbg.o: Debug.c $(HEADERS)

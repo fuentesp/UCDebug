@@ -64,6 +64,13 @@ osbool FPdispDoublePrec = FALSE;
 wimp_t AppTask;
 font_f AppFont;
 
+/* Titles of the windows */
+char CodeWinTitle[WinTitleSize];
+char DataWinTitle[WinTitleSize];
+char RegsWinTitle[WinTitleSize];
+char ConsWinTitle[WinTitleSize];
+char UsrWinTitle[WinTitleSize];
+char FPRegsWinTitle[WinTitleSize];
 
 /* Handle to the different windows */
 wimp_w CodeWin; /* Code view window */
@@ -93,6 +100,7 @@ int main(int argc, char *argv[]) {
 	mlist->messages[1] = message_ICONISE_AT;
 	mlist->messages[2] = 0;
 	wimp_add_messages(mlist);
+	free(mlist);
 
 	/* Fill up the debug area with random garbage data */
 	for (i = 0; i < DebugAreaSize; i++) {
@@ -177,19 +185,19 @@ void ClrBrk() {
 void PrintBrk() {
 	int i;
 	char aux[PrintedWordSize + 1];
-	char line[ConsLinSize - 1];
+	char line[ConsLinSize + 1];
 
 	snprintf(line, sizeof(line), "%d BreakPoints", CurNumBr);
 	ConsWrite(ConsWin, line);
-	strcpy(line, "");
+	snprintf(line, ConsLinSize + 1, "");
 	for (i = 0; i < CurNumBr; i++) {
 		snprintf(aux, sizeof(aux), "0x%08X", BrkPtList[i]);
-		strncat(line, aux, sizeof(line) - strlen(line));
+		strncat(line, aux, ConsLinSize - strlen(line));
 		if ((((i + 1) % 4) == 0) || (i + 1) == CurNumBr) {
 			ConsWrite(ConsWin, line);
-			strcpy(line, "");
+			snprintf(line, ConsLinSize + 1, "");
 		} else {
-			strncat(line, "    ", sizeof(line) - strlen(line));
+			strncat(line, "    ", ConsLinSize - strlen(line));
 		}
 	}
 }
@@ -385,6 +393,8 @@ static void main_terminate(void) {
 	FreeIconbarMenu();
 	wimp_close_down(0);
 	font_lose_font(AppFont);
+	CodeWinTerminate();
+	DataWinTerminate();
 }
 
 /* Check if the address is in the accepted range */

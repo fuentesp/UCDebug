@@ -43,7 +43,8 @@ wimp_w DataWinCreate(int startAddr, int numAddrs, int displayType, int PosX, int
 	int i;
 
 	if (numAddrs < VisRows) numAddrs = VisRows;
-	DataWin = open_window(DataWinName, DataWinSizeX, numAddrs * LinSizeY, PosX, PosY,
+	snprintf(DataWinTitle, WinTitleSize, DataWinName);
+	DataWin = open_window(DataWinTitle, DataWinSizeX, numAddrs * LinSizeY, PosX, PosY,
 			DataWinSizeX, DataWinSizeY, 0, 0, 0x06);
 	DataIcons = malloc(sizeof(struct DataType) * numAddrs);
 
@@ -78,11 +79,10 @@ void DataWinRedraw(wimp_w DataWin, int startAddr, int numAddrs, int displayType)
 	addr = startAddr;
 	for (i = 0; i < numAddrs; i++) {
 		/* Address */
-		sprintf(Aux, "0x%08X", addr);
-		strncpy(DataIcons[i].T_Addr, Aux, PrintedWordSize);
+		snprintf(DataIcons[i].T_Addr, PrintedWordSize + 1, "0x%08X", addr);
 		/* Data is displayed in two sets: in hex notation, and in ASCII format */
-		strcpy(DataIcons[i].T_Data, "");
-		strcpy(DataIcons[i].T_ASCII, "");
+		snprintf(DataIcons[i].T_Data, MemHexBlockSize, "");
+		snprintf(DataIcons[i].T_ASCII, MemAsciiBlockSize, "");
 		for (j = 0; j < 4; j++) {
 			/* Pick up data and increase pointer */
 			data = *(int *) addr;
@@ -91,23 +91,23 @@ void DataWinRedraw(wimp_w DataWin, int startAddr, int numAddrs, int displayType)
 				case 0: /* Display in words */
 					snprintf(Aux, sizeof(Aux), "%08X", data);
 					strncat(DataIcons[i].T_Data, Aux,
-							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
-					if (j < 3) strcat(DataIcons[i].T_Data, "       ");
+							MemHexBlockSize - 1 - strlen(DataIcons[i].T_Data));
+					if (j < 3) strncat(DataIcons[i].T_Data, "       ", MemHexBlockSize - 1);
 					break;
 				case 1: /* Display in half-words */
 					snprintf(Aux, sizeof(Aux), "%04X   %04X", (data & 0x0FFFF),
 							((data >> 16) & 0x0FFFF));
 					strncat(DataIcons[i].T_Data, Aux,
-							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
-					if (j < 3) strcat(DataIcons[i].T_Data, "   ");
+							MemHexBlockSize - 1 - strlen(DataIcons[i].T_Data));
+					if (j < 3) strncat(DataIcons[i].T_Data, "   ", MemHexBlockSize - 1);
 					break;
 				case 2: /* Display in bytes */
 					snprintf(Aux, sizeof(Aux), "%02X  %02X  %02X  %02X", data & 0x0FF,
 							(data >> 8) & 0x0FF, (data >> 16) & 0x0FF,
 							(data >> 24) & 0x0FF);
 					strncat(DataIcons[i].T_Data, Aux,
-							sizeof(DataIcons[i].T_Data) - strlen(DataIcons[i].T_Data));
-					if (j < 3) strcat(DataIcons[i].T_Data, "  ");
+							MemHexBlockSize - 1 - strlen(DataIcons[i].T_Data));
+					if (j < 3) strncat(DataIcons[i].T_Data, "  ", MemHexBlockSize - 1);
 					break;
 			}
 			/* ASCII representation of the memory values */
@@ -119,10 +119,14 @@ void DataWinRedraw(wimp_w DataWin, int startAddr, int numAddrs, int displayType)
 					Aux[k] = (char) t;
 			}
 			Aux[4] = '\0';
-			strncat(DataIcons[i].T_ASCII, Aux, sizeof(DataIcons[i].T_ASCII));
+			strncat(DataIcons[i].T_ASCII, Aux, MemAsciiBlockSize - strlen(DataIcons[i].T_ASCII));
 		}
 	}
 
 	/* Update window */
 	UpdateWindow(DataWin);
+}
+
+void DataWinTerminate() {
+	free(DataIcons);
 }

@@ -96,35 +96,36 @@ wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY) {
 	aux = malloc(DisasInstrSize + 1);
 
 	if (NumInstr < VisRows) NumInstr = VisRows;
-	CodeWin = open_window(CodeWinName, CodeWinSizeX, NumInstr * LinSizeY, PosX, PosY,
+	snprintf(CodeWinTitle, WinTitleSize, CodeWinName);
+	CodeWin = open_window(CodeWinTitle, CodeWinSizeX, NumInstr * LinSizeY, PosX, PosY,
 	CodeWinSizeX, CodeWinSizeY, 0, 0, 0x06);
 	CodeIcons = malloc(sizeof(struct CodeType) * NumInstr);
 	Addr = StartAddr;
 
 	for (i = 0; i < NumInstr; i++) {
 		/* Address */
-		snprintf(aux, DisasInstrSize, "0x%08X", Addr);
-		strncpy(CodeIcons[i].T_Addr, aux, PrintedWordSize);
+		snprintf(CodeIcons[i].T_Addr, PrintedWordSize + 1, "0x%08X", Addr);
 		/* Instruction Code*/
 		t_addr = (int *) Addr;
 		Code = *t_addr;
-		snprintf(aux, DisasInstrSize, "0x%08X", Code);
-		strncpy(CodeIcons[i].T_Code, aux, PrintedWordSize);
+		snprintf(CodeIcons[i].T_Code, PrintedWordSize + 1, "0x%08X", Code);
 		/*Instruction Disassembly */
 		debugger_disassemble(Code, t_addr, &aux, &size);
-		strncpy(CodeIcons[i].T_Disem, aux, DisasInstrSize);
+		snprintf(CodeIcons[i].T_Disem, DisasInstrSize + 1, aux);
+		CodeIcons[i].T_Disem[DisasInstrSize] = 0; // Append null char to ensure end of string
 		Addr = Addr + 4;
 
 		CodeIcons[i].I_Addr = TextIconCreate(CodeWin, 10, 5 + LinSizeY * i,
-				CharSizeX * 10, CharSizeY, CodeIcons[i].T_Addr, PrintedWordSize+1, CodeIcons[i].V_Addr);
+				CharSizeX * 10, CharSizeY, CodeIcons[i].T_Addr, PrintedWordSize + 1, CodeIcons[i].V_Addr);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Addr, wimp_COLOUR_LIGHT_GREY);
 		CodeIcons[i].I_Code = TextIconCreate(CodeWin, 20 + CharSizeX * 10,
-				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, CodeIcons[i].T_Code, PrintedWordSize+1, CodeIcons[i].V_Code);
+				5 + LinSizeY * i, CharSizeX * 10, CharSizeY, CodeIcons[i].T_Code, PrintedWordSize + 1, CodeIcons[i].V_Code);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Code, wimp_COLOUR_LIGHT_GREY);
 		CodeIcons[i].I_Disem = TextIconCreate(CodeWin, 30 + CharSizeX * 20,
-				5 + LinSizeY * i, CharSizeX * 40, CharSizeY, CodeIcons[i].T_Disem, DisasInstrSize, CodeIcons[i].V_Disem);
+				5 + LinSizeY * i, CharSizeX * 40, CharSizeY, CodeIcons[i].T_Disem, DisasInstrSize + 1, CodeIcons[i].V_Disem);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Disem, wimp_COLOUR_LIGHT_GREY);
 	}
+	free(aux);
 
 	return CodeWin;
 }
@@ -140,21 +141,21 @@ void CodeWinRedraw(wimp_w CodeWin, int StartAddr, int NumInstr) {
 
 	for (i = 0; i < NumInstr; i++) {
 		/*Address*/
-		snprintf(aux, DisasInstrSize, "0x%08X", Addr);
-		strncpy(CodeIcons[i].T_Addr, aux, PrintedWordSize);
+		snprintf(CodeIcons[i].T_Addr, PrintedWordSize + 1, "0x%08X", Addr);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Addr, wimp_COLOUR_LIGHT_GREY);
 		/*Instruction Code */
 		t_addr = (int *) Addr;
 		Code = *t_addr;
-		snprintf(aux, DisasInstrSize, "0x%08X", Code);
-		strncpy(CodeIcons[i].T_Code, aux, PrintedWordSize);
+		snprintf(CodeIcons[i].T_Code, PrintedWordSize + 1, "0x%08X", Code);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Code, wimp_COLOUR_LIGHT_GREY);
 		/* Instruction Disassembly */
 		debugger_disassemble(Code, t_addr, &aux, &size);
-		strncpy(CodeIcons[i].T_Disem, aux, DisasInstrSize);
+		snprintf(CodeIcons[i].T_Disem, DisasInstrSize + 1, aux);
+		CodeIcons[i].T_Disem[DisasInstrSize] = 0; // Append null char to ensure end of string
 		Addr = Addr + 4;
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Disem, wimp_COLOUR_LIGHT_GREY);
 	}
+	free(aux);
 
 	/* Highlight the PC and breakpoint instructions */
 	ColorPC(CodeWin, StartAddr, NumInstr);
@@ -165,3 +166,8 @@ void CodeWinRedraw(wimp_w CodeWin, int StartAddr, int NumInstr) {
 
 }
 
+
+/* Free all structures corresponding to the Code window */
+void CodeWinTerminate() {
+	free(CodeIcons);
+}

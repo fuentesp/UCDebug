@@ -45,4 +45,4 @@ extern struct DataType *DataIcons;
 /*Public Function Protos*/
 wimp_w DataWinCreate(int startAddr, int numAddrs, int displayType, int PosX, int PosY);
 void DataWinRedraw(wimp_w DataWin, int startAddr, int numAddrs, int displayType);
-
+void DataWinTerminate();

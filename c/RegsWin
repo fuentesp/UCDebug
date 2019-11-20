@@ -43,29 +43,30 @@ wimp_w RegsWinCreate(int PosX, int PosY) {
 	wimp_w RegsWin;
 	int i, j;
 
-	RegsWin = open_window(RegsWinName, RegsWinSizeX, RegsWinSizeY, PosX, PosY,
+	snprintf(RegsWinTitle, WinTitleSize, RegsWinName);
+	RegsWin = open_window(RegsWinTitle, RegsWinSizeX, RegsWinSizeY, PosX, PosY,
 			RegsWinSizeX, RegsWinSizeY, 0, 0, 0x06);
 
-	strncpy(RegsIcons[0].T_Name, "R0", 9);
-	strncpy(RegsIcons[1].T_Name, "R1", 9);
-	strncpy(RegsIcons[2].T_Name, "R2", 9);
-	strncpy(RegsIcons[3].T_Name, "R3", 9);
-	strncpy(RegsIcons[4].T_Name, "R4", 9);
-	strncpy(RegsIcons[5].T_Name, "R5", 9);
-	strncpy(RegsIcons[6].T_Name, "R6", 9);
-	strncpy(RegsIcons[7].T_Name, "R7", 9);
-	strncpy(RegsIcons[8].T_Name, "R8", 9);
-	strncpy(RegsIcons[9].T_Name, "R9", 9);
-	strncpy(RegsIcons[10].T_Name, "R10", 9);
-	strncpy(RegsIcons[11].T_Name, "R11", 9);
-	strncpy(RegsIcons[12].T_Name, "R12", 9);
-	strncpy(RegsIcons[13].T_Name, "R13 (SP)", 9);
-	strncpy(RegsIcons[14].T_Name, "R14 (LR)", 9);
-	strncpy(RegsIcons[15].T_Name, "R15 (PC)", 9);
-	strncpy(RegsIcons[16].T_Name, "CPSR", 9);
-	strncpy(RegsIcons[17].T_Name, "FLAGS", 9);
-	strncpy(RegsIcons[18].T_Name, "CPU Mode", 9);
-	strncpy(RegsIcons[19].T_Name, "SPSR", 9);
+	snprintf(RegsIcons[0].T_Name, RegNameSize + 1, "R0");
+	snprintf(RegsIcons[1].T_Name, RegNameSize + 1, "R1");
+	snprintf(RegsIcons[2].T_Name, RegNameSize + 1, "R2");
+	snprintf(RegsIcons[3].T_Name, RegNameSize + 1, "R3");
+	snprintf(RegsIcons[4].T_Name, RegNameSize + 1, "R4");
+	snprintf(RegsIcons[5].T_Name, RegNameSize + 1, "R5");
+	snprintf(RegsIcons[6].T_Name, RegNameSize + 1, "R6");
+	snprintf(RegsIcons[7].T_Name, RegNameSize + 1, "R7");
+	snprintf(RegsIcons[8].T_Name, RegNameSize + 1, "R8");
+	snprintf(RegsIcons[9].T_Name, RegNameSize + 1, "R9");
+	snprintf(RegsIcons[10].T_Name, RegNameSize + 1, "R10");
+	snprintf(RegsIcons[11].T_Name, RegNameSize + 1, "R11");
+	snprintf(RegsIcons[12].T_Name, RegNameSize + 1, "R12");
+	snprintf(RegsIcons[13].T_Name, RegNameSize + 1, "R13 (SP)");
+	snprintf(RegsIcons[14].T_Name, RegNameSize + 1, "R14 (LR)");
+	snprintf(RegsIcons[15].T_Name, RegNameSize + 1, "R15 (PC)");
+	snprintf(RegsIcons[16].T_Name, RegNameSize + 1, "CPSR");
+	snprintf(RegsIcons[17].T_Name, RegNameSize + 1, "FLAGS");
+	snprintf(RegsIcons[18].T_Name, RegNameSize + 1, "CPU Mode");
+	snprintf(RegsIcons[19].T_Name, RegNameSize + 1, "SPSR");
 
 	for (i = 0; i < 16; i++) {
 		/* Create the icons of registers 0 - 15 */
@@ -103,26 +104,23 @@ wimp_w RegsWinCreate(int PosX, int PosY) {
 /* RegsWinRedraw updates the Register view window */
 void RegsWinRedraw(wimp_w RegsWin) {
 	int i;
-	char Aux[PrintedWordSize];
 
 	/* Register value within current context */
 	for (i = 0; i < 16; i++) {
-		snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.Regs[i]);
-		strncpy(RegsIcons[i].T_Val, Aux, PrintedWordSize);
+		snprintf(RegsIcons[i].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.Regs[i]);
 		if (CurContext.Regs[i] != LastShownContext[i])
 			ChTextFGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_RED);
 		else
 			ChTextFGColour(RegsWin, RegsIcons[i].I_Val, wimp_COLOUR_BLACK);
 	}
 	/* Display the CPSR, the flags and the CPU mode (the latter two from the CPSR) */
-	sprintf(Aux, "0x%08X", CurContext.CPSR);
-	strncpy(RegsIcons[16].T_Val, Aux, PrintedWordSize);
+	snprintf(RegsIcons[16].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.CPSR);
 	if (CurContext.CPSR != LastShownContext[16])
 		ChTextFGColour(RegsWin, RegsIcons[16].I_Val, wimp_COLOUR_RED);
 	else
 		ChTextFGColour(RegsWin, RegsIcons[16].I_Val, wimp_COLOUR_BLACK);
 
-	strcpy(RegsIcons[17].T_Val, "-----");
+	snprintf(RegsIcons[17].T_Val, PrintedWordSize + 1, "-----");
 	if ((CurContext.CPSR & 0x80000000) != 0) RegsIcons[17].T_Val[0] = 'N';
 	if ((CurContext.CPSR & 0x40000000) != 0) RegsIcons[17].T_Val[1] = 'Z';
 	if ((CurContext.CPSR & 0x20000000) != 0) RegsIcons[17].T_Val[2] = 'C';
@@ -133,27 +131,24 @@ void RegsWinRedraw(wimp_w RegsWin) {
 	else
 		ChTextFGColour(RegsWin, RegsIcons[17].I_Val, wimp_COLOUR_BLACK);
 
-	strcpy(RegsIcons[18].T_Val, "");
 	switch (CurContext.CPSR & 0x01F) {
 		case 0x010:
-			strcat(RegsIcons[18].T_Val, "usr");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "usr");
 			/* Clear and hide SPSR register */
-			strncpy(RegsIcons[19].T_Val, "", PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "");
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_DARK_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_DARK_GREY);
 			break;
 		case 0x011:
-			strcat(RegsIcons[18].T_Val, "fiq");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "fiq");
 			for (i = 0; i < 7; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.FiqRegs[i]);
-				strncpy(RegsIcons[i+8].T_Val, Aux, PrintedWordSize);
+				snprintf(RegsIcons[i+8].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.FiqRegs[i]);
 				if (CurContext.FiqRegs[i] != LastShownContext[i+8])
 					ChTextFGColour(RegsWin, RegsIcons[i+8].I_Val, wimp_COLOUR_RED);
 				else
 					ChTextFGColour(RegsWin, RegsIcons[i+8].I_Val, wimp_COLOUR_BLACK);
 			}
-			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.FiqRegs[7]);
-			strncpy(RegsIcons[19].T_Val, Aux, PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.FiqRegs[7]);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_LIGHT_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_LIGHT_GREY);
 			if (CurContext.FiqRegs[7] != LastShownContext[17])
@@ -162,17 +157,15 @@ void RegsWinRedraw(wimp_w RegsWin) {
 				ChTextFGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_BLACK);
 			break;
 		case 0x012:
-			strcat(RegsIcons[18].T_Val, "irq");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "irq");
 			for (i = 0; i < 2; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.IrqRegs[i]);
-				strncpy(RegsIcons[i+13].T_Val, Aux, PrintedWordSize);
+				snprintf(RegsIcons[i+13].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.IrqRegs[i]);
 				if (CurContext.IrqRegs[i] != LastShownContext[i+13])
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_RED);
 				else
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_BLACK);
 			}
-			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.IrqRegs[2]);
-			strncpy(RegsIcons[19].T_Val, Aux, PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.IrqRegs[2]);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_LIGHT_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_LIGHT_GREY);
 			if (CurContext.IrqRegs[2] != LastShownContext[17])
@@ -181,17 +174,15 @@ void RegsWinRedraw(wimp_w RegsWin) {
 				ChTextFGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_BLACK);
 			break;
 		case 0x013:
-			strcat(RegsIcons[18].T_Val, "svc");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "svc");
 			for (i = 0; i < 2; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.SvcRegs[i]);
-				strncpy(RegsIcons[i+13].T_Val, Aux, PrintedWordSize);
+				snprintf(RegsIcons[i+13].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.SvcRegs[i]);
 				if (CurContext.SvcRegs[i] != LastShownContext[i+13])
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_RED);
 				else
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_BLACK);
 			}
-			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.SvcRegs[2]);
-			strncpy(RegsIcons[19].T_Val, Aux, PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.SvcRegs[2]);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_LIGHT_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_LIGHT_GREY);
 			if (CurContext.SvcRegs[2] != LastShownContext[17])
@@ -200,17 +191,15 @@ void RegsWinRedraw(wimp_w RegsWin) {
 				ChTextFGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_BLACK);
 			break;
 		case 0x017:
-			strcat(RegsIcons[18].T_Val, "abt");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "abt");
 			for (i = 0; i < 2; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.AbtRegs[i]);
-				strncpy(RegsIcons[i+13].T_Val, Aux, PrintedWordSize);
+				snprintf(RegsIcons[i+13].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.AbtRegs[i]);
 				if (CurContext.AbtRegs[i] != LastShownContext[i+13])
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_RED);
 				else
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_BLACK);
 			}
-			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.AbtRegs[2]);
-			strncpy(RegsIcons[19].T_Val, Aux, PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.AbtRegs[2]);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_LIGHT_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_LIGHT_GREY);
 			if (CurContext.AbtRegs[2] != LastShownContext[17])
@@ -219,17 +208,15 @@ void RegsWinRedraw(wimp_w RegsWin) {
 				ChTextFGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_BLACK);
 			break;
 		case 0x01B:
-			strcat(RegsIcons[18].T_Val, "und");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "und");
 			for (i = 0; i < 2; i++) { /* Update value from sp and lr regs */
-				snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.UndRegs[i]);
-				strncpy(RegsIcons[i+13].T_Val, Aux, PrintedWordSize);
+				snprintf(RegsIcons[i+13].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.UndRegs[i]);
 				if (CurContext.UndRegs[i] != LastShownContext[i+13])
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_RED);
 				else
 					ChTextFGColour(RegsWin, RegsIcons[i+13].I_Val, wimp_COLOUR_BLACK);
 			}
-			snprintf(Aux, sizeof(Aux), "0x%08X", CurContext.UndRegs[2]);
-			strncpy(RegsIcons[19].T_Val, Aux, PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.UndRegs[2]);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_LIGHT_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_LIGHT_GREY);
 			if (CurContext.UndRegs[2] != LastShownContext[17])
@@ -238,14 +225,14 @@ void RegsWinRedraw(wimp_w RegsWin) {
 				ChTextFGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_BLACK);
 			break;
 		case 0x01F:
-			strcat(RegsIcons[18].T_Val, "sys");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "sys");
 			/* Clear and hide SPSR register */
-			strncpy(RegsIcons[19].T_Val, "", PrintedWordSize);
+			snprintf(RegsIcons[19].T_Val, PrintedWordSize + 1, "");
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Val, wimp_COLOUR_DARK_GREY);
 			ChTextBGColour(RegsWin, RegsIcons[19].I_Name, wimp_COLOUR_DARK_GREY);
 			break;
 		default:
-			strcat(RegsIcons[18].T_Val, "UKN");
+			snprintf(RegsIcons[18].T_Val, PrintedWordSize + 1, "UKN");
 			break;
 	}
 	if ((CurContext.CPSR & 0x01F) != (LastShownContext[16] & 0x01F))

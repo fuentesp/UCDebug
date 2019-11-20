@@ -43,13 +43,14 @@ wimp_w FPRegsWinCreate(int PosX, int PosY) {
 	wimp_w FPRegsWin;
 	int i, j;
 
-	FPRegsWin = open_window(FPRegsWinName, FPRegsWinSizeX, FPRegsWinSizeY, PosX, PosY,
+	snprintf(FPRegsWinTitle, WinTitleSize, FPRegsWinName);
+	FPRegsWin = open_window(FPRegsWinTitle, FPRegsWinSizeX, FPRegsWinSizeY, PosX, PosY,
 			FPRegsWinSizeX, FPRegsWinSizeY, 0, 0, 0x06);
 
 	if (FPdispDoublePrec) {
 		/* Display double precision regs */
 		for (i = 0; i < 16; i += 1) {
-			snprintf(FPRegsIcons[i].T_Name, 6, "d%d", i);
+			snprintf(FPRegsIcons[i].T_Name, FPRegNameSize + 1, "d%d", i);
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * 2 * i,
 					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
@@ -71,7 +72,7 @@ wimp_w FPRegsWinCreate(int PosX, int PosY) {
 	} else {
 		/* Display single precision regs */
 		for (i = 0; i < 32; i++) {
-			snprintf(FPRegsIcons[i].T_Name, 6, "s%d", i);
+			snprintf(FPRegsIcons[i].T_Name, FPRegNameSize + 1, "s%d", i);
 			/* Create the icons of registers 0 - 31 (single-value FP regs) */
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * i,
 					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
@@ -88,8 +89,8 @@ wimp_w FPRegsWinCreate(int PosX, int PosY) {
 	}
 
 	/* Create the icons for the FCPSR and its flags */
-	strncpy(FPRegsIcons[32].T_Name, "FPSCR", 6);
-	strncpy(FPRegsIcons[33].T_Name, "FLAGS", 6);
+	snprintf(FPRegsIcons[32].T_Name, FPRegNameSize + 1, "FPSCR");
+	snprintf(FPRegsIcons[33].T_Name, FPRegNameSize + 1, "FLAGS");
 	for (i = 32; i < 34; i++) {
 		FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 20 + LinSizeY * i,
 				CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
@@ -125,9 +126,8 @@ void FPRegsWinRedraw(wimp_w FPRegsWin) {
 	}
 
 	/* Display the FPSCR and the flags (from the FPSCR) */
-	snprintf(FPRegsIcons[32].T_Val, PrintedWordSize, "0x%08X", CurContext.FPSCR);
-
-	strcpy(FPRegsIcons[33].T_Val, "----");
+	snprintf(FPRegsIcons[32].T_Val, PrintedWordSize + 1, "0x%08X", CurContext.FPSCR);
+	snprintf(FPRegsIcons[33].T_Val, PrintedWordSize + 1, "----");
 	if ((CurContext.FPSCR & 0x80000000) != 0) FPRegsIcons[33].T_Val[0] = 'N';
 	if ((CurContext.FPSCR & 0x40000000) != 0) FPRegsIcons[33].T_Val[1] = 'Z';
 	if ((CurContext.FPSCR & 0x20000000) != 0) FPRegsIcons[33].T_Val[2] = 'C';
@@ -146,7 +146,7 @@ void ToggleWinDisplay(wimp_w FPRegsWin) {
 			wimp_delete_icon(FPRegsWin, FPRegsIcons[i].I_FPval);
 		}
 		for (i = 0; i < 16; i += 1) {
-			snprintf(FPRegsIcons[i].T_Name, 6, "d%d", i);
+			snprintf(FPRegsIcons[i].T_Name, FPRegNameSize + 1, "d%d", i);
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * 2 * i,
 					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
 			ChTextBGColour(FPRegsWin, FPRegsIcons[i].I_Name, wimp_COLOUR_LIGHT_GREY);
@@ -174,7 +174,7 @@ void ToggleWinDisplay(wimp_w FPRegsWin) {
 			wimp_delete_icon(FPRegsWin, FPRegsIcons[i].I_FPval);
 		}
 		for (i = 0; i < 32; i++) {
-			snprintf(FPRegsIcons[i].T_Name, 6, "s%d", i);
+			snprintf(FPRegsIcons[i].T_Name, FPRegNameSize + 1, "s%d", i);
 			/* Create the icons of registers 0 - 31 (single-value FP regs) */
 			FPRegsIcons[i].I_Name = TextIconCreate(FPRegsWin, 7, 5 + LinSizeY * i,
 					CharSizeX * 6, CharSizeY, FPRegsIcons[i].T_Name, FPRegNameSize + 1, FPRegsIcons[i].V_Name);
