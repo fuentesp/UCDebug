@@ -253,8 +253,7 @@ void ResetWindow(wimp_w WinHandle, int SizeX, int SizeY, int PosX, int PosY, int
 	umsg.my_ref = 0;
 	umsg.your_ref = 0;
 	umsg.action = message_WINDOW_CLOSED;
-	*((wimp_w *) ((unsigned int) (&umsg) + 20)) = WinHandle;
-
+	*((wimp_w *) ((unsigned int) &(umsg.data))) = WinHandle;
 	wimp_send_message(wimp_USER_MESSAGE, &umsg, wimp_BROADCAST);
 
 	Info->w = WinHandle;
@@ -325,7 +324,7 @@ void IconiseWindow(wimp_w WinHandle) {
 	umsg.action = message_ICONISE;
 	*((wimp_w *) (&(umsg.data))) = WinHandle;
 	*((wimp_t *) ((unsigned int) &(umsg.data) + 4)) = AppTask;
-	snprintf(((char *) ((unsigned int) &(umsg.data) + 8)), osspriteop_NAME_LIMIT, info->title_data.text);
+	snprintf(((char *) ((unsigned int) &(umsg.data) + 8)), osspriteop_NAME_LIMIT, "%s", info->title_data.indirected_text.text);
 	wimp_send_message(wimp_USER_MESSAGE, &umsg, wimp_BROADCAST);
 
 	free(info);
@@ -479,7 +478,6 @@ void InitialiseIconbarMenu() {
 				snprintf(IconBarMenu->entries[i].sub_menu->entries[j].data.text, MenuEntryLen, aux);
 				aux = strtok(NULL, submenu_separator);
 			}
-			//free(aux2); //FIXME: is it necessary to free up the allocation?
 		}
 		IconBarMenu->entries[i].icon_flags = wimp_ICON_TEXT | wimp_ICON_VCENTRED
 				| wimp_ICON_FILLED | wimp_ICON_TEXT
