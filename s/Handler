@@ -243,9 +243,8 @@ cmp r0, #0x7
 bne mDAb			@ If fault!=0b0111, mark as data abort
 mrc p15, 0, r0, cr6, cr0, 0	@ Conflict address
 mov r1, r0
-@CCC: can these raise some problem if they are not paged or something?
-@swi OS_ValidateAddress
-@bcs mDAb			@ If C flag active, address is outside valid range
+swi OS_ValidateAddress
+bcs mDAb			@ If C flag active, address is outside valid range
 ldr r0, =PrefetchAddress	@ If valid address, store it to prefetch in
 str r1, [r0]			@ the next loop,
 b ReleaseHandler		@ and do not mark data abort

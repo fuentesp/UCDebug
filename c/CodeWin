@@ -93,7 +93,6 @@ wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY) {
 	wimp_w CodeWin;
 	int i, size, Addr, Code, *t_addr;
 	char *aux;
-	aux = malloc(DisasInstrSize + 1);
 
 	if (NumInstr < VisRows) NumInstr = VisRows;
 	snprintf(CodeWinTitle, WinTitleSize, CodeWinName);
@@ -125,7 +124,6 @@ wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY) {
 				5 + LinSizeY * i, CharSizeX * 40, CharSizeY, CodeIcons[i].T_Disem, DisasInstrSize + 1, CodeIcons[i].V_Disem);
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Disem, wimp_COLOUR_LIGHT_GREY);
 	}
-	free(aux);
 
 	return CodeWin;
 }
@@ -134,7 +132,6 @@ wimp_w CodeWinCreate(int StartAddr, int NumInstr, int PosX, int PosY) {
 void CodeWinRedraw(wimp_w CodeWin, int StartAddr, int NumInstr) {
 	int i, size, Addr, Code, *t_addr;
 	char *aux;
-	aux = malloc(DisasInstrSize + 1);
 
 	if (NumInstr < VisRows) NumInstr = VisRows;
 	Addr = StartAddr;
@@ -155,7 +152,6 @@ void CodeWinRedraw(wimp_w CodeWin, int StartAddr, int NumInstr) {
 		Addr = Addr + 4;
 		ChTextBGColour(CodeWin, CodeIcons[i].I_Disem, wimp_COLOUR_LIGHT_GREY);
 	}
-	free(aux);
 
 	/* Highlight the PC and breakpoint instructions */
 	ColorPC(CodeWin, StartAddr, NumInstr);
