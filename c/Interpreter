@@ -69,6 +69,7 @@
 #define UNALIGN_ADDR_MSG	"Address is not aligned to word"
 #define UNALIGN_WORD_MSG	"Address 0x%08X is not aligned to store word 0x%08X"
 #define UNALIGN_HALF_MSG	"Address 0x%08X is not aligned to store half 0x%04X"
+#define UNALIGN_ENTRY_MSG	"Entry point 0x%08X is not aligned to word"
 #define INVALID_MEM_SIZE	"Size %d is not a valid size: 8(byte) / 16(half) / 32(word)"
 #define MIS_REG_MSG			"Missing register parameter"
 #define INVALID_REG_MSG		"Invalid register (must be r0-r15, sp, lr, pc, cpsr, s0-31, d0-d15, or fpscr)"
@@ -428,31 +429,37 @@ void loadFile(char *filename) {
 					/* Check if ELF file fits in debugging area */
 					fseek(file, 0, SEEK_END);
 					flength = ftell(file);
-					fseek(file, 0, SEEK_SET);
 					if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
 						snprintf(aux_msg, ConsLinSize + 1, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
 								DebugAreaSize);
 					} else {
-						/* Load ELF file and update data and code windows */
-						fread((char *) (AddrElfFile), 1, flength, file);
+						/* Check if entry point is aligned to word */
 						fseek(file, OffEntryPoint, SEEK_SET);
 						fread(&AddrCodeStart, 1, 4, file);
-						CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
-						fseek(file, OffCodeEnd, SEEK_SET);
-						fread(&AddrCodeEnd, 1, 4, file);
-						AddrCodeEnd += AddrElfFile;
-						/* Set stack pointer at the end of the ELF file loaded; ensure it is
-						 * aligned to a word */
-						DefStackCtx();
-						CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
-						CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
-						fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
-						fread(&AddrDataStart, 1, 4, file);
-						/* If data section starts out of range, set a default @ */
-						if (!validMemAddressRange(AddrDataStart))
-							AddrDataStart = AddrCodeEnd;
-						snprintf(aux_msg2, ConsLinSize - strlen(SUCC_LOAD_MSG) + 2, "%s", filename);
-						snprintf(aux_msg, ConsLinSize + 1, SUCC_LOAD_MSG, aux_msg2);
+						if (AddrCodeStart & 3 != 0) {
+							snprintf(aux_msg, ConsLinSize + 1, UNALIGN_ENTRY_MSG, AddrCodeStart);
+							AddrCodeStart = AddrCodeCur;
+						} else {
+							/* Load ELF file and update data and code windows */
+							fseek(file, 0, SEEK_SET);
+							fread((char *) (AddrElfFile), 1, flength, file);
+							CurContext.Regs[15] = AddrCodeStart; /* PC = entry point */
+							fseek(file, OffCodeEnd, SEEK_SET);
+							fread(&AddrCodeEnd, 1, 4, file);
+							AddrCodeEnd += AddrElfFile;
+							/* Set stack pointer at the end of the ELF file loaded; ensure it is
+							 * aligned to a word */
+							DefStackCtx();
+							CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
+							CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
+							fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
+							fread(&AddrDataStart, 1, 4, file);
+							/* If data section starts out of range, set a default @ */
+							if (!validMemAddressRange(AddrDataStart))
+								AddrDataStart = AddrCodeEnd;
+							snprintf(aux_msg2, ConsLinSize - strlen(SUCC_LOAD_MSG) + 2, "%s", filename);
+							snprintf(aux_msg, ConsLinSize + 1, SUCC_LOAD_MSG, aux_msg2);
+						}
 					}
 				}
 			}
