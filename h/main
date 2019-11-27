@@ -31,8 +31,8 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.8.3"
-#define AppDate				" (21 - Nov - 2019)"
+#define AppVersion			"1.8.3f"
+#define AppDate				" (27 - Nov - 2019)"
 #define SpriteName			"!ucdebug"
 #define TextFontName		"\\FCorpus.Medium"
 #define CharSizeX			19

@@ -508,6 +508,7 @@ ldmia sp!, {r4-r5, pc}
 @     - Code_OSLeaveOS
 @     - Code_OSClaimDeviceVector
 @     - Code_OSReleaseDeviceVector
+@	  - Code_OSHardware
 @   Returns in r0 an ExecType that reports if the instruction will be executed or not.
 @
 CheckInst:
@@ -685,7 +686,7 @@ b End_checkinstr
 Else_checkinstr7:
 ldr r1, =Code_OSReleaseDeviceVector
 cmp r4, r1
-bne End_checkinstr
+bne Else_checkinstr8
 ldr r0, [r5]		@ load user reg r0 (device number)
 ldr r1, =drivercount
 ldr r2, [r1]
@@ -748,6 +749,23 @@ ldr r0, [r1]
 add r0, r0, #Ex_DnR	@ Throw error for Device not Released
 str r0, [r1]
 b End_checkinstr
+
+Else_checkinstr8:
+ldr r1, =Code_OSHardware
+cmp r4,r1
+bne End_checkinstr
+stmdb sp!, {r4-r9}
+ldr r0, =CurContext
+ldm r0, {r0-r9}  @ Load the registers we could need for the SWI
+swi OS_Hardware
+ldr r10, =CurContext
+stm r10, {r0-r9}		@ store in r0-r9 from usr context the results of thw SWI
+ldmia sp!, {r4-r9}
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
+str r0, [r1]
+b Default_checkinstr
 
 Default_checkinstr:
 @ Do not execute the instruction

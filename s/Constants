@@ -4,6 +4,7 @@
 .equ	OS_LeaveOS,			0x7C
 .equ	OS_Memory,			0x68
 .equ	OS_ReadC,			0x04
+.equ	OS_Hardware,		0x7A
 .equ	OS_SynchronizeCodeAreas,	0x6E
 .equ	OS_ValidateAddress,		0x3A
 
@@ -79,6 +80,7 @@
 .equ	Code_OSLeaveOS,			0x0F00007C
 .equ	Code_OSClaimDeviceVector,	0x0F00004B
 .equ	Code_OSReleaseDeviceVector,	0x0F00004C
+.equ	Code_OSHardware,		0x0F00007A
 .equ	BrkpInst,			0xE1200071
 
 .equ	Num_Loop,			1000
