@@ -22,6 +22,11 @@
 | You should have received a copy of the GNU General Public License
 | along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+set FormerFS <FileSwitch$CurrentFilingSystem>
+if FormerFS="SDFS" then
+	set aux_dir <FileSwitch$SDFS$CSD>
+	if aux_dir="" then set aux_dir "&"
+
 dir <obey$dir>
 make
-
+if FormerFS="SDFS" then dir <FormerFS>:<aux_dir> else echo WARNING!!!: CSD may have changed

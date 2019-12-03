@@ -429,7 +429,7 @@ void loadFile(char *filename) {
 					/* Check if ELF file fits in debugging area */
 					fseek(file, 0, SEEK_END);
 					flength = ftell(file);
-					if (flength > ((int) &CurContext - AddrElfFile - StackSize)) {
+					if (flength > ((int) &DEBUG_AREA[DebugAreaSize] - AddrElfFile - StackSize)) {
 						snprintf(aux_msg, ConsLinSize + 1, "%s (max %d bytes)", FILE_TOO_BIG_MSG,
 								DebugAreaSize);
 					} else {
