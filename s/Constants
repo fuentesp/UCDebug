@@ -60,6 +60,8 @@
 .equ	DpiInst,			0x02000000
 .equ	LimInstMask,			0x0E100000
 .equ	LimInst,			0x04100000
+.equ	UmiInstMask,			0x0F900000
+.equ	UmiInst,			0x03000000
 .equ	MaskLdmPcField,			0x00008000
 .equ	MaskRnField,			0x000F0000
 .equ	MaskRdField,			0x0000F000
