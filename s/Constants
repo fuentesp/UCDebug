@@ -107,6 +107,7 @@
 .equ	 Ex_OoR,			0x1400
 .equ	 Ex_DnA,			0x1500
 .equ	 Ex_DnR,			0x1600
+.equ	 Ex_VFP,			0x1700
 .equ	 StateByteMask,			0xFF00
 .equ	 StateTypeMask,			0xF000
 .equ	 CmdByteMask,			0x00FF

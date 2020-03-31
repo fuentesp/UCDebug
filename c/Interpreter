@@ -84,6 +84,7 @@
 #define DEV_NA_MSG			"Device %d cannot be used"
 #define DEV_NR_MSG			"Device %d has not been claimed & cannot be released"
 #define UKN_EX_MSG			"ERROR!: non-contemplated exception at the interpreter: 0x%06X"
+#define VFP_EX_MSG			"Error with Floating-Point instruction at addr 0x%08X"
 
 /* Auxiliar strings */
 #define alphabet	"abcdefghijklmnopqrstuvwxyz+-*/.¡!¿?$%&()[]"
@@ -797,6 +798,10 @@ void HandleException() {
 		case Ex_DnR: /* Device not Released */
 			/* User program tries to release a device that has not been claimed */
 			snprintf(aux_msg, sizeof(aux_msg), DEV_NR_MSG, CurContext.Regs[0]);
+			ConsWrite(ConsWin, aux_msg);
+			break;
+		case Ex_VFP: /* Floating Point exception */
+			snprintf(aux_msg, sizeof(aux_msg), VFP_EX_MSG, CurContext.Regs[15]);
 			ConsWrite(ConsWin, aux_msg);
 			break;
 		default:

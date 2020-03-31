@@ -60,6 +60,11 @@ str r1, [r0]		@ write program r0 in its place in CurContext
 sub r1,lr,#4
 str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
 add r2, r0, #OffFPRegs
+
+vmrs r5, FPEXC					@ Save the FP exception status to r5 to later test
+bic r3, r5, #0x80000000			@ against exception at Floating-Point unit
+bic r3, r3, #0xff0				@ Clear any possible exception at the Floating-Point unit
+vmsr fpexc, r3					@ in order to save the state of the FP registers
 vstm r2!, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR
 str r3, [r2]			@ write FPSCR
@@ -108,8 +113,8 @@ str lr, [r0, #56]		@ write program lr in its place
 ldr r0,[r1]    @ read the instruction
 ldr r2,=BrkpInst @ code for bkpt 1
 cmp r0,r2
-beq ReleaseHandler
-@ mark Prefetch Abort
+beq PAH_CheckVFPEx
+mPA:			@ mark Prefetch Abort
 ldr r1,=ExecType
 mov r0, #Ex_PAb
 str r0,[r1]
@@ -120,6 +125,19 @@ add r1, r1, #4
 str r1, [r0, #OffAbtRegs+4]	@ write abort lr (only if it is not a breakpoint)
 b  ReleaseHandler
 
+PAH_CheckVFPEx:		@ check VFP exception
+tst r5, #0x80000000
+beq ReleaseHandler
+mVFPE:
+ldr r1, =ExecType
+mov r0, #Ex_VFP
+str r0, [r1]		@ mark VFP exception
+ldr r0,=CurContext
+ldr r1, [r0, #60]
+sub r1, r1, #4
+str r1, [r0, #60]	@ write program PC in its place (the VFP exception does not stop execution)
+b ReleaseHandler
+
 UndefinedInstructHandler:
 @@ Save context from all modes, starting from Undefined mode
 str r0, [sp, #-4]!
@@ -129,6 +147,10 @@ ldr r1, [sp], #4
 str r1, [r0]		@ write program r0 in its place in CurContext
 sub r1,lr,#4
 str r1,[r0,#60] @ write program pc in its place (it is lr while in exception)
+vmrs r3, FPEXC
+bic r3, r3, #0x80000000
+bic r3, r3, #0xff0				@ Clear any possible exception at the Floating-Point unit
+vmsr fpexc, r3					@ in order to save the values of the FP registers.
 add r2, r0, #OffFPRegs
 vstm r2!, {s0-s31} @ write floating-point regs
 vmrs r3, FPSCR
