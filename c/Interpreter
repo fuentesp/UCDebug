@@ -83,6 +83,7 @@
 #define CODE_ADDR_MSG			"WARNING: Address 0x%08X is below data section (0x%08X)"
 #define DEV_NA_MSG			"Device %d cannot be used"
 #define DEV_NR_MSG			"Device %d has not been claimed & cannot be released"
+#define USR_BR_LIM			"The number of user breakpoints exceeds the limit"
 #define UKN_EX_MSG			"ERROR!: non-contemplated exception at the interpreter: 0x%06X"
 #define VFP_EX_MSG			"Error with Floating-Point instruction at addr 0x%08X"
 
@@ -453,6 +454,7 @@ void loadFile(char *filename) {
 							DefStackCtx();
 							CurContext.Regs[13] = AddrElfFile + flength + (4 - flength %4) + 0x1400;
 							CurContext.CPSR = CurContext.CPSR & 0xFFFFFFF0; /* Clear user mode */
+							ResetIRQtable();
 							fseek(file, elfSize + prHeadSize + OffVirtAddr, SEEK_SET);
 							fread(&AddrDataStart, 1, 4, file);
 							/* If data section starts out of range, set a default @ */
@@ -724,8 +726,8 @@ void HandleSWI() {
 				UsrWin = UsrWinCreate(PosXUsrWin, PosYUsrWin);
 			else
 				ResetWindow(UsrWin, -1, -1, -1, -1, -1, -1, (wimp_w) -1);
-			/* Ensure it runs the instruction again (to actually execute SWI GetChar) */
-			if ((ExecType & CmdByteMask) == Stop_Ex) ExecType = Run_Tr;
+			/* Perform the GetChar operation */
+			SWIReadChar();
 			break;
 //		case SWI_EnOS: /* EnterOS */
 //			/* Do nothing, and return control */
@@ -799,6 +801,10 @@ void HandleException() {
 			/* User program tries to release a device that has not been claimed */
 			snprintf(aux_msg, sizeof(aux_msg), DEV_NR_MSG, CurContext.Regs[0]);
 			ConsWrite(ConsWin, aux_msg);
+			break;
+		case Ex_TMB: /* Too Many Breakpoints */
+			/* User setted too many breakpoints */
+			ConsWrite(ConsWin, USR_BR_LIM);
 			break;
 		case Ex_VFP: /* Floating Point exception */
 			snprintf(aux_msg, sizeof(aux_msg), VFP_EX_MSG, CurContext.Regs[15]);

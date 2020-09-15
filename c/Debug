@@ -346,7 +346,7 @@ void mainPoll(void) {
 				}
 			} else if (block.pointer.w == wimp_ICON_BAR) {
 				/* Click at the IconBar, it restores all iconised windows and displays an app menu*/
-				if (block.pointer.buttons == wimp_CLICK_SELECT) {
+				if (block.pointer.buttons == wimp_SINGLE_SELECT) {
 					for (i = 0; i < NumWindows; i++) {
 						if (WindowStates[i] != wss_CLOSED) {
 							WindowStates[i] = wss_ON_SCREEN;
@@ -354,6 +354,9 @@ void mainPoll(void) {
 							ActivateCons(ConsWin);
 						}
 					}
+				} else if (block.pointer.buttons == wimp_DOUBLE_ADJUST) {
+					ExecType = Stop_Ex;
+					ConsWrite(ConsWin, "Stopping exec");
 				} else if (block.pointer.buttons == wimp_CLICK_MENU)
 					OpenIconbarMenu(block.pointer);
 			}

@@ -7,6 +7,7 @@
 .equ	OS_Hardware,		0x7A
 .equ	OS_SynchronizeCodeAreas,	0x6E
 .equ	OS_ValidateAddress,		0x3A
+.equ    OS_EnterOSAndSave, 	0x45
 
 @ Hardware-related constants
 .equ	BCM2835_id,		0x410FB767
@@ -25,8 +26,12 @@
 .equ	OffIrqRegs,		236
 .equ	OffFiqRegs,		248
 
-@ Masks to change user mode
+@ Masks to disable interrupts and imprecise aborts
 .equ	MaskDisIRQs,		0x180	@ Disable interrupts and imprecise aborts
+.equ	MaskDisInt,			0x80	@ Disable interrupts
+
+
+@ Masks to change user mode
 .equ	MaskSysMode,		0x1F	@ Enter System mode
 .equ	MaskSvcMode,		0x13	@ Enter Supervisor mode
 .equ	MaskAbtMode,		0x17	@ Enter Abort mode
@@ -83,6 +88,7 @@
 .equ	Code_OSClaimDeviceVector,	0x0F00004B
 .equ	Code_OSReleaseDeviceVector,	0x0F00004C
 .equ	Code_OSHardware,		0x0F00007A
+.equ	Code_OSEnterOSAndSave,		0x0F000045
 .equ	BrkpInst,			0xE1200071
 
 .equ	Num_Loop,			1000
@@ -108,9 +114,28 @@
 .equ	 Ex_DnA,			0x1500
 .equ	 Ex_DnR,			0x1600
 .equ	 Ex_VFP,			0x1700
+.equ	 Ex_TMB,			0x1800
 .equ	 StateByteMask,			0xFF00
 .equ	 StateTypeMask,			0xF000
 .equ	 CmdByteMask,			0x00FF
 .equ	 SWI_Ex_Mask,			0x0F00
 .equ	 Skip_Inst,			0x10000
+.equ 	 SWI_NC,			0x20000
 
+.equ	 MaxBrPoints,			256
+
+
+/* Address validation constants */
+.equ     Partially_Phys,	0x1000
+.equ     Completely_Phys,	0x100
+.equ     Completly_User_RW,	0x3
+.equ     Completly_Priv_RW,	0xC
+
+/* Timer constants */
+.equ 	 GF_Timer_Cycles, 0x10000
+.equ 	 STBASE, 		  0x20003000
+.equ 	 STCS,  		  0x00
+.equ 	 STCL0, 		  0x04
+.equ 	 STC2,  		  0x14
+.equ     timer_int_bit,	  0x04
+.equ     irq_int_bit,     0b100

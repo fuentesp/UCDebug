@@ -56,7 +56,7 @@ void ibar_initialise(void) {
 	icon_bar.icon.extent.x1 = 68;
 	icon_bar.icon.extent.y1 = 68;
 	icon_bar.icon.flags = wimp_ICON_SPRITE
-			| (wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT);
+			| (wimp_BUTTON_DOUBLE_CLICK_DRAG << wimp_ICON_BUTTON_TYPE_SHIFT);
 	snprintf(icon_bar.icon.data.sprite, osspriteop_NAME_LIMIT, SpriteName);
 	wimp_create_icon(&icon_bar);
 

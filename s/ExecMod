@@ -35,6 +35,7 @@
 .global   HandDatRel
 .global   HandUndRel
 .global   HandIRQRel
+.global	  HandSWIRel
 .global   ourregisters
 .global   ReturnHandler
 .global   StackHandler
@@ -45,6 +46,11 @@
 .global   UsrControllerMask
 .extern   ControllerBaseAddress
 .global   jtp
+.extern	  setimmediatebreakpoints
+.extern   clearimmediatebreakpoints
+.global   CheckInstCond
+.global   Device
+.global   TimerID
 
 .data
 
@@ -56,13 +62,13 @@ HandPreRel:    .space  4
 HandDatRel:    .space  4
 HandUndRel:    .space  4
 HandIRQRel:    .space  4
+HandSWIRel:    .space  4
 ReturnHandler: .space  4
 StackHandler:  .space  4
 PrefetchAddress:	.word 0
-PendingGetChar:         .word 0
-
-immediatebreakpointnumber: .word 0
-immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
+PendingGetChar:     .word 0
+Device: 			.word 0
+TimerID:			.word 2
 
 .align 2
 drivercount:          .word 0
@@ -134,6 +140,31 @@ ldr r0, =DbgControllerMask
 stm r0, {r1-r3}			@ Store IRQ enable from GUI
 
 
+@ If there is a pending interrupt acknowledge it (in
+@ case any previous execution has used Go-Fast mode)
+ldr r0,=Device
+ldr r4,[r0]
+ldr r1, [r4,#STCS]
+ands r1, r1, #timer_int_bit
+strne r1, [r4,#STCS]
+
+@
+@ If we are executing in Go Fast mode set up the timer
+@ and interruptions to return periodically to the GUI.
+@
+ldr r1,=ExecType
+ldr r0, [r1]
+tst r0, #Run_Gf
+beq Not_Gf_mode
+
+@ Timer counter initialization
+ldr r1, [r4,#STCL0]
+add r1, #GF_Timer_Cycles
+str r1, [r4, #STC2]
+
+
+Not_Gf_mode:
+
 @
 @ Number of loops = 0
 @
@@ -141,10 +172,21 @@ ldr r0,=Loop
 mov r1,#0
 str r1,[r0]
 @
-@ It looks if the next instruction has to be executed
+@ Checks if the next instruction is in a valid range
 @
 Another_inst:
-bl CheckInst
+ldr r0, =CurContext
+ldr r0,[r0,#60]  @ Load the address of the new instruction
+
+bl validMemAddressRange	@ check if the address is within the valid range
+cmp r0, #0
+ldr r1,=ExecType
+bne validAddress	@ valid address, load the instruction
+@ Non-valid address
+mov r0, #Ex_OoR 	@ mark an Out-of-Range exception, so the instruction is not run
+str r0,[r1]
+validAddress:
+ldr r0, [r1]	@ load the value of ExecType
 tst r0, #0xFF00         @ Check State byte of ExecType
 bne End_CodeExec
 tst r0, #Skip_Inst	@ Instruction is not run, but dbg does not return to GUI
@@ -153,9 +195,9 @@ bne checkreturn
 @
 @ Set Brkpt in the following instruction
 @
-tst r0, #0xF0
-@blne setfastbreakpoints		@ set breakpoints for Go-Fast mode
-bl setimmediatebreakpoints
+tst r0, #Run_Gf
+blne setfastbreakpoints		@ set breakpoints for Go-Fast mode
+bleq setimmediatebreakpoints @ set breakpoints for other modes
 
 @
 @ jumptoprogram enables the handler routine for the breakpoint, switches to the context
@@ -164,6 +206,10 @@ bl setimmediatebreakpoints
 @
 jtp:
 bl jumptoprogram
+ldr r0, =ExecType
+ldr r0, [r0]
+tst r0, #SWI_NC
+blne ExecuteSWInotcaptured
 
 @
 @ Remove Breakpoint from the following instruction
@@ -178,6 +224,17 @@ checkreturn:
 bl ReturnCLI
 cmp r0,#0
 bne Another_inst
+
+@ If in Go-Fast mode, reset the timer before returning to interface
+@ Acknoledge interrupt
+ldr r0,=Device
+ldr r0,[r0]
+mov r9, #timer_int_bit
+str r9, [r0,#STCS]
+@ Set timer in the past to avoid future interrupts
+ldr r1, [r0,#STCL0]
+sub r1, r1, #1
+str r1, [r0, #STC2]
 
 @
 @ Recover the context from the debugger, including the CPSR
@@ -253,18 +310,16 @@ msr cpsr, r1		@ to avoid inconsistent states
 @ in the IRQ table to happen
 @
 mvn r1, #0			@ Load all bits to 1
-mov r2, r1
-@bic r2, r2, #0x10000		@ Do NOT disable mouse
-mov r3, r1
 ldr r4, =ControllerBaseAddress
 ldr r4, [r4]
 add r5, r4, #0x21C
 str r1, [r5], #4                @ Disable all interrupts
-str r2, [r5], #4		@ one by one (a stm produces weird
-str r3, [r5], #4		@ effects)
+str r1, [r5], #4		@ one by one (a stm produces weird
+str r1, [r5], #4		@ effects)
 ldr r0, =UsrControllerMask
 ldm r0, {r1-r3}
 add r5, r4, #0x210
+orr r1, r1, #irq_int_bit	@ Enable the SysTimer used in the Go-Fast mode
 str r1, [r5], #4		@ Enable those interrupts used by the user
 str r2, [r5], #4		@ (also register by register)
 str r3, [r5], #4
@@ -296,6 +351,8 @@ ldr r0,[r0]
 ldr r0,=DataAbortHandler
 ldr r0,[r0]
 ldr r0,=IRQHandler
+ldr r0,[r0]
+ldr r0,=SWIHandler
 ldr r0,[r0]
 ldr r0,=ReleaseHandler
 ldr r0,[r0]
@@ -349,7 +406,17 @@ orr r0, r0, #0x100
 ldr r1, =IRQHandler
 mov r2, #0
 swi OS_ClaimProcessorVector
-ldr r0, =HandIRQRel	@ remember to release r1
+@ remember to release r1
+ldr r0, =HandIRQRel
+str r1, [r0]
+
+mov r0, #0x02 	@ claim + SWI
+orr r0, r0, #0x100
+ldr r1, =SWIHandler
+mov r2, #0
+swi OS_ClaimProcessorVector
+@ remember to release r1
+ldr r0, =HandSWIRel
 str r1, [r0]
 
 @@@@ DUMP pending onto registers
@@ -498,289 +565,6 @@ ldmia sp!, {r4-r5, pc}
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @
-@   Function (CheckInst) that determines if the next instruction is to be executed. It
-@	is not executed if it is one of the following SWIs:
-@     - Code_OSExit
-@     - Code_OSWriteStr
-@     - Code_OSWriteChar
-@     - Code_OSGetChar
-@     - Code_OSEnterOS
-@     - Code_OSLeaveOS
-@     - Code_OSClaimDeviceVector
-@     - Code_OSReleaseDeviceVector
-@	  - Code_OSHardware
-@   Returns in r0 an ExecType that reports if the instruction will be executed or not.
-@
-CheckInst:
-stmdb sp!, {r4, r5, lr}
-
-ldr r5, =CurContext
-ldr r0,[r5,#60]
-
-bl validMemAddressRange	@ before analysing the instruction, check if the address
-cmp r0, #0		@ is within the valid range
-bne load_instruction	@ valid address, load the instruction
-ldr r1,=ExecType
-mov r0, #Ex_OoR 	@ mark an Out-of-Range exception, so the instruction is not run
-str r0,[r1]
-b End_checkinstr
-
-load_instruction:
-ldr r0,[r5,#60]
-ldr r4,[r0] @ Load the instruction
-
-@ First check if it is a SWI; otherwise, jump to end
-and r1, r4, #SWI_Mask
-cmp r1, #SWI_Mask
-bne End_checkinstr
-
-@ Then check if the exec is inconditional or not
-and r1, r4, #Cond_Mask
-cmp r1, #Alw_Exec_Inst
-beq checkinstr1	@ Inconditional execution, check if it is one of the captured SWIs
-
-@ Conditional execution, verify if it will execute
-lsr r0, r1, #28         @ Load condition field
-ldr r1, [r5,#OffCpsr]	@ Load CPSR
-bl CheckInstCond
-cmp r0, #0
-beq End_checkinstr	@ It the instruction will not be executed, skip checkings
-
-checkinstr1:
-bic r4, r4, #Cond_Mask
-ldr r1,=Code_OSExit
-cmp r4,r1
-bne Else_checkinstr1
-@ change ExecType
-ldr r1,=ExecType
-ldr r0,[r1]
-add r0, r0, #Prg_End
-str r0,[r1] @ Change ExecType to Prg_End
-b Default_checkinstr
-
-Else_checkinstr1:
-ldr r1, =Code_OSWriteStr
-cmp r4,r1
-bne Else_checkinstr2
-@ change ExecType
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #SWI_WrL
-str r0, [r1]
-b Default_checkinstr
-
-Else_checkinstr2:
-ldr r1, =Code_OSWriteChar
-cmp r4,r1
-bne Else_checkinstr3
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #SWI_WrC
-str r0, [r1]
-b Default_checkinstr
-
-Else_checkinstr3:
-ldr r1, =Code_OSGetChar
-cmp r4, r1
-bne Else_checkinstr4
-ldr r0, =PendingGetChar
-ldr r1, [r0]
-cmp r1, #0
-bne RunGetChar		@ Check if getChar has been exec'd
-str r0, [r0]		@ Store in PendingGetChar its own address: anything non-zero
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #SWI_GeC
-str r0, [r1]		@ Update ExecType, to ensure it goes to GUI
-b End_checkinstr
-RunGetChar:
-mov r1, #0
-str r1, [r0]		@ reset PendingGetChar var
-swi OS_ReadC
-ldr r1, =CurContext
-str r0, [r1]		@ store in r0 from usr context the char read in the SWI
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-
-Else_checkinstr4:
-ldr r1, =Code_OSEnterOS
-cmp r4,r1
-bne Else_checkinstr5
-ldr r1, [r5, #OffCpsr]		@ CPSR
-str r1, [r5, #OffSvcRegs+8]	@ Store previous CPSR in svc SPSR
-bic r1, r1, #MaskSysMode
-orr r1, r1, #MaskSvcMode
-str r1, [r5, #OffCpsr]		@ Update CPSR with the SVC user mode
-ldr r1, [r5, #60]
-str r1, [r5, #OffSvcRegs+4]	@ Store previous PC in LR
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst		@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-
-Else_checkinstr5:
-ldr r1, =Code_OSLeaveOS
-cmp r4,r1
-bne Else_checkinstr6
-ldr r1,[r5,#OffCpsr]	 	@CPSR
-bic r1,r1,#MaskSysMode-MaskUsrMode
-str r1,[r5,#OffCpsr]		@Update CPSR with User mode
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst		@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-
-Else_checkinstr6:
-ldr r1, =Code_OSClaimDeviceVector
-cmp r4, r1
-bne Else_checkinstr7
-ldr r0, [r5]		@ Check if the device should be used
-cmp r0, #64
-bge NotRunClaimDev
-@ check if interrupt already in GUI
-ldr r1, =DbgControllerMask
-cmp r0, #32
-mov r3, r0
-addge r1, r1, #4	@ if device>=32, get IRQ 2
-subge r3, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
-ldr r1, [r1]
-mov r2, #1
-lsl r2, r2, r3		@ translate device number into its bit within mask
-tst r1, r2
-bne NotRunClaimDev	@ device already in Dbg mask, should not be used
-@ place interrupt in user mask
-ldr r1, =UsrControllerMask
-cmp r0, #32
-addge r1, r1, #4	@ if device>=32, get IRQ 2
-subge r0, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
-ldr r3, [r1]
-orr r3, r3, r2
-str r3, [r1]		@ add this device number to interrupt mask
-@ add interrupt routine to driver table
-ldr r0, =drivercount
-ldr r1, [r0]
-ldr r3, =drivertable
-add r3, r3, r1, LSL #2
-add r3, r3, r1, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
-add r1, r1, #1		@ increase number of active drivers
-str r1, [r0]
-ldm r5, {r0-r2}		@ load user regs r0-r2 (device number, driver @, R12 val)
-stm r3, {r0-r2}		@ store values in driver table entry
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-NotRunClaimDev:
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Ex_DnA	@ Throw error: this device cannot be used (Device Not Available)
-str r0, [r1]
-b End_checkinstr
-
-Else_checkinstr7:
-ldr r1, =Code_OSReleaseDeviceVector
-cmp r4, r1
-bne Else_checkinstr8
-ldr r0, [r5]		@ load user reg r0 (device number)
-ldr r1, =drivercount
-ldr r2, [r1]
-ldr r3, =drivertable
-add r3, r3, r2, LSL #2
-add r3, r3, r2, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
-E_c7_fori:
-cmp r2, #0
-beq NotSetDev		@ if specified device is not in the table, throw error
-ldr r4, [r3, #-12]!	@ it starts loop pointing past last element in driver table
-sub r2, r2, #1
-cmp r4, r0
-bne E_c7_fori
-ldr r0, [r5, #4]	@ load user reg r1 (routine address)
-ldr r4, [r3, #4]	@ get routine address from entry in driver table
-cmp r0, r4
-ldrne r0, [r5]		@ restore in r0 the device number and jump back to the
-bne E_c7_fori		@ loop if the addresses do not match
-ldr r0, [r5, #8]	@ load user reg r2 (r12 value at entry of the routine)
-ldr r4, [r3, #8]	@ get r12 value from entry in driver table
-cmp r0, r4
-ldrne r0, [r5]		@ if values do not match, reload device number and go back to
-bne E_c7_fori		@ the loop
-@ released device matches entry in table... remove entry (pushing forward any
-@ entries behind), decrease number of drivers, and remove interrupt from user mask
-ldr r4, [r1]
-sub r4, r4, #1		@ decrease number of drivers for 2 reasons: to update value,
-E_c7_forj:              @ and because last entry has to be cleared
-cmp r2, r4
-bge E_c7_endfor
-stmdb sp!, {r0-r2}
-add r0, r3, #12		@ pointer to next entry
-ldm r0, {r0-r2}		@ load values from entry
-stm r3, {r0-r2}		@ store in entry-1
-ldmia sp!, {r0-r2}
-add r3, r3, #12		@ move pointer forward
-add r2, r2, #1
-b E_c7_forj		@ go to the beginning of the loop
-E_c7_endfor:
-str r4, [r1]		@ update number of drivers
-ldr r0, [r5]		@ get device number
-ldr r1, =UsrControllerMask
-cmp r0, #32
-addge r1, r1, #4	@ if device>=32, get IRQ 2
-subge r0, r0, #32	@ convert dev id to offset within current set of ids (IRQ 1 or 2)
-ldr r3, [r1]
-mov r2, #1
-lsl r2, r2, r0		@ translate device number into its bit within mask
-bic r3, r3, r2
-str r3, [r1]		@ remove this device number to interrupt mask
-
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-NotSetDev:
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Ex_DnR	@ Throw error for Device not Released
-str r0, [r1]
-b End_checkinstr
-
-Else_checkinstr8:
-ldr r1, =Code_OSHardware
-cmp r4,r1
-bne End_checkinstr
-stmdb sp!, {r4-r9}
-ldr r0, =CurContext
-ldm r0, {r0-r9}  @ Load the registers we could need for the SWI
-swi OS_Hardware
-ldr r10, =CurContext
-stm r10, {r0-r9}		@ store in r0-r9 from usr context the results of thw SWI
-ldmia sp!, {r4-r9}
-ldr r1, =ExecType
-ldr r0, [r1]
-add r0, r0, #Skip_Inst	@ Update ExecType: it should skip going to the GUI
-str r0, [r1]
-b Default_checkinstr
-
-Default_checkinstr:
-@ Do not execute the instruction
-@ Move forward PC
-ldr r1,[r5,#60] @ PC
-add r1, r1, #4
-str r1,[r5,#60] @ PC = PC + 4
-
-End_checkinstr:
-ldr r1,=ExecType
-ldr r0, [r1]
-ldmia sp!, {r4, r5, pc}
-
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@
 @   Function (ReturnCLI) that determines whether to execute another instruction or go
 @	back to the CLI.
 @	It returns a 0 in r0 if the execution is NOT resumed
@@ -804,26 +588,26 @@ b   No_execute
 
 modeGO:     @ In GO mode
 @
-@ Check if it is a Brkpt from the list; if so, set ExecType to 0 and jump to No_execute
+@ Check if the next instruction is a Brkpt from the list; if so, set ExecType to 0 and jump to No_execute
 @
 ldr r0,=CurContext
 ldr r5,[r0,#60]      @ Load the PC of next instruction
 ldr r0,=CurNumBr
-ldr r6,[r0]          @ Load the number of BreakPoints
+ldr r6,[r0]			@ Load the number of BreakPoints
 ldr r0, =BrkPtList     @ Pointer to BreakPoints List
 loop_GO:
    cmp r6,#0
-   beq End_BrkList
+   beq End_BrkList	@ Exit if the next instrcution isn't a breakpoint
    ldr r1,[r0], #4
    cmp r5,r1
-   bne Next_Brk
+   bne Next_Brk		@ If the breakpoint is not set in the next instruction
    ldr r1,=ExecType
    ldr r0, [r1]
    add r0, r0, #Stop_Br		@ Write the Stop_Br constant to warn of a reached breakpoint
    str r0,[r1]
    mov r0, #0
    b End_RetCLI
-Next_Brk:
+Next_Brk:	@Decrease the breakpoint counter
    sub r6, r6, #1
    b   loop_GO
 End_BrkList:
@@ -904,17 +688,28 @@ b No_execute
 modeGF:		@ In GoFast mode
 @
 @ it stops if a breakpoint set by the user has been reached
-ldr r0,=CurContext
-ldr r5,[r0,#60]			@ Load the PC of next instruction
+@
 ldr r0,=CurNumBr
 ldr r6,[r0]			@ Load the number of BreakPoints
+@ Check if the number of breakpoints set by the user exceeds the table maximum
+Check_number_breakpoints:
+	cmp r6, #MaxBrPoints @ Checks if there are too many breakpoints
+	ldrgt r1,=ExecType
+	ldrgt r0, [r1]
+	addgt r0, r0, #Ex_TMB @ Send error code to user
+	strgt r0,[r1]
+	movgt r0, #0 @ Indicate to return to the CLI
+	bgt End_RetCLI
+
+ldr r0,=CurContext
+ldr r5,[r0,#60]			@ Load the PC of next instruction
 ldr r0, =BrkPtList		@ Pointer to BreakPoints List
-loop_GF:
+loop_GF:	@ Looks if a breakpoint
    cmp r6,#0
-   beq Execute
+   beq No_execute @ If it was produced by the timer interruption
    ldr r1,[r0], #4
    cmp r5,r1
-   beq end_loop_GF
+   beq end_loop_GF @ If the instruction is a breakpoint
    sub r6, r6, #1
    b   loop_GF
 end_loop_GF:
@@ -931,195 +726,43 @@ mov r0, #0xFF
 End_RetCLI:
 mov pc,lr
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@
-@ set a breakpoint in the loaded program after its pc and on potential branches
-@	Register use:
-@	-r0-r3: aux vars
-@	-r4: user PC
-@	-r5: next instruction to execute
-@	-r6: current context structure (bank of registers from the user)
-@	-r7: masked instruction (to execute and determine next PC)
-@
-setimmediatebreakpoints:
-stmdb sp!, {r4-r7, lr}
-bl loadAuxCurContext	@ update aux table to get regs from current user mode
-ldr r6, =AuxCurContext
-ldr r4, [r6, #60]	@ get PC
-ldr r5, [r4]		@ instruction to be executed
 
-@ Check if instruction will be executed; otherwise, next inst is PC+4
-and r0, r5, #Cond_Mask		@ get condition field from the instruction
-cmp r0, #Alw_Exec_Inst
-beq sib_checkbranch		@ inconditional exec, check type of inst
-
-				@ conditional execution
-lsr r0, r0, #28			@ place condition field at the least significant bits
-ldr r1, [r6, #OffCpsr]		@ load CPSR from CurContext
-bl CheckInstCond
-cmp r0, #0
-beq sib_nextinst		@ the instruction will not be exec'ed, next @ is PC+4
-
-sib_checkbranch:		@ check if the instruction is a B/BL
-and r0, r5, #BrInstMask		@ mask to get instruction type
-cmp r0, #BrInst
-bne sib_checkldm
-bic r0, r5, #0xFF000000		@ get 24-bit immediate field
-tst r0, #0x00800000		@ if the most significant bit is 1,
-orrne r0, r0, #0xFF000000	@ the imm is negative => extend the sign
-add r0, r4, r0, LSL #2		@ PC + immediate * 4
-add r0, r0, #8			@ + 8
-b sib_setbrk
-
-sib_checkldm:			@ check if the instruction is a LDM
-and r0, r5, #LdmInstMask	@ mask to get instruction type
-cmp r0, #LdmInst		@ check if the instruction is a LDM
-bne sib_checkdprs
-ands r0, r5, #MaskLdmPcField	@ check if the PC is updated in the LDM
-beq sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =0x7FFF			@ mask to get the number of regs loaded, excluding PC
-and r0, r5, r0			@ list of regs loaded (1 bit per reg)
-mov r1, #0			@ counter of number of registers
-sib_loop_ldm:
-tst r0, #1			@ test least significant bit
-addne r1, r1, #1		@ if bit=1, increase count
-lsrs r0, r0, #1			@ discard that bit
-bne sib_loop_ldm
-and r0, r5, #MaskRnField	@ get field 'register with the base address'
-ldr r0, [r6, r0, LSR #14]	@ base address=mem(CurContext+reg with base @ * 4)
-and r2, r5, #0x01800000		@ get addressing mode field from the instruction
-lsr r2, r2, #23
-cmp r2, #1
-ldreq r0, [r0, r1, LSL #2]	@ IA => base address + off * 4
-cmp r2, #2
-ldreq r0, [r0, #-4]		@ DB => base address - 4
-cmp r2, #3
-addeq r1, #1
-ldreq r0, [r0, r1, LSL #2]	@ IB => base address + (off * 4) + 4
-cmp r2, #0
-ldreq r0, [r0]			@ DA => base address
-b sib_setbrk
-
-sib_checkdprs:          	@ check if it is a data processing register shift
-ldr r0, =DprsInstMask		@ mask to get instruction type
-and r0, r5, r0
-cmp r0, #DprsInst
-bne sib_checkdpis
-and r0, r5, #MiscInstMask	@ mask to see if it is a misc instr
-cmp r0, #MiscInst		@ check if misc instr
-beq sib_nextinst
-and r0, r5, #MaskRdField	@ check if the dest reg is PC
-cmp r0, #MaskRdField
-bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRsField+MaskRmField
-bic r7, r5, r0			@ Clear 'cond', 'Rd', 'Rn', 'Rm' and 'Rs' fields
-ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm+MaskR3asRs
-orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2, Rs=r3
-b sib_grfi_arg3
-
-sib_checkdpis:          	@ check if it is a load with reg offset or
-				@ a data processing immediate shift
-ldr r0, =LroInstMask		@ mask to get instruction type
-and r0, r5, r0
-cmp r0, #LroInst		@ check if load with reg offset
-ldrne r0, =DpisInstMask		@ mask to get instruction type
-andnes r0, r5, r0		@ check if data processing immediate shift
-bne sib_checkdpi
-ldr r0, =Misc2InstMask		@ mask to see if a misc instr
-and r0, r5, r0
-cmp r0, #Misc2Inst		@ check if it is a misc instr
-beq sib_nextinst
-and r0, r5, #MaskRdField	@ check if the dest reg is PC
-cmp r0, #MaskRdField
-bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRmField
-bic r7, r5, r0			@ mask to clear 'cond', 'Rd', 'Rn', and 'Rm' fields
-ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm
-orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2
-b sib_grfi_arg2
-
-sib_checkdpi:           	@ check if instruction is a data processing immediate
-				@ or a load with immediate offset
-and r0, r5, #DpiInstMask	@ mask to get instruction type
-cmp r0, #DpiInst		@ check if data processing immediate
-andne r0, r5, #LimInstMask
-cmpne r0, #LimInst		@ check if load immediate offset
-bne sib_nextinst		@ none of the instructions that affect PC, next @ is PC+4
-and r0, r5, #UmiInstMask	@ mask to get instruction type
-cmp r0, #UmiInst		@ discard undefined and MSR immediate instructions
-beq sib_nextinst
-and r0, r5, #MaskRdField		@ check if the dest reg is PC
-cmp r0, #MaskRdField
-bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
-ldr r0, =Cond_Mask+MaskRdField+MaskRnField
-bic r7, r5, r0			@ mask to clear 'cond', 'Rd', and 'Rn' fields
-ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn
-orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1
-b sib_grfi_arg1
-
-sib_grfi_arg3:			@ load in r3 the value of the Rs from the inst
-and r3, r5, #MaskRsField	@ get Rs
-ldr r3, [r6, r3, LSR #6]	@ r3 = mem(CurContext + Rs * 4)
-sib_grfi_arg2:			@ load in r2 the value of the Rm from the inst
-and r2, r5, #MaskRmField	@ get Rm
-ldr r2, [r6, r2, LSL #2]	@ r2 = mem(CurContext + Rm * 4)
-sib_grfi_arg1:
-and r1, r5, #MaskRnField	@ get Rn
-ldr r1, [r6, r1, LSR #14]	@ r1 = mem(CurContext + Rn * 4)
-ldr r0, =GetResultFromInst
-str r7, [r0]			@ store instruction to exec it
+ExecuteSWInotcaptured:
+@ Clean the bit for SWI not captured
+ldr r0, =ExecType
+ldr r1, [r0]
+bic r1, r1, #SWI_NC
+str r1, [r0]
+@ Substitute the bkpt instruction with the SWI we need to execute
+ldr r10, =CurContext
+ldr r1, [r10, #60] 	@ Load the lr of the SWI instruction we need to execute
+ldr r1, [r1, #-4]	@ Load the SWI code
+bic r1, r1, #Cond_Mask	   @ Clean the conditional field
+orr r1, r1, #Alw_Exec_Inst @ and replace it with a code for always execute
+ldr r0, =replaceswi
+str r1, [r0]		@ Substitute the instruction with the SWI we need to execute
 mov r0, #0 			@ flags, 0 for all memory
 swi OS_SynchronizeCodeAreas
-bl GetResultFromInst
-b sib_setbrk			@ set the breakpoint at the future PC
-
-sib_nextinst:			@ Consecutive execution: next inst is at PC+4
-add r0, r4, #4
-
-sib_setbrk:			@ Set the breakpoint
-stmdb sp!, {r0-r3}              @ store context to keep it after function call
-bl validMemAddressRange
-cmp r0, #0
-ldmia sp!, {r0-r3}
-beq sib_end                     @ if address is outside user range, do not place
-				@ breakpoint (to account for IRQ release function)
-ldr r1, [r0] 			@ instruction to be saved
-ldr r2, =immediatebreakpoints
-str r0, [r2], #4		@ save address
-str r1, [r2], #4		@ save content
-ldr r1, =BrkpInst
-str r1, [r0]			@ set the bkpt
-mov r0, #1			@ breakpoint counter
-ldr r1, =immediatebreakpointnumber
-str r0, [r1]			@ store the breakpoint counter
-
-mov r0,#0 @ flags, 0 for all memory
-swi OS_SynchronizeCodeAreas
-sib_end:
-ldmia sp!, {r4-r7, pc}
-
-
-GetResultFromInst:
-bkpt @brkpt to provoke a prefetch abort (this inst should be replaced)
+@ Check if the SWI was executed in FIQ mode
+ldr r0, [r10, #OffCpsr]
+and r0, r0, #MaskSysMode
+subs r12, r0, #MaskFiqMode
+@ Load the registers we could need for the SWI
+ldm r10, {r0-r9}
+@ If we need the FIQ regs
+addeq r11, r10, #OffFiqRegs
+ldmeq r11, {r8, r9}
+replaceswi:
+bkpt @ bkpt to provoke a prefetch abort (this inst should be replaced)
+@ Store the result in the user context
+cmp r12, #0
+stmne r10, {r0-r7}
+strne r8, [r10, #32]
+strne r9, [r10, #36]
+stmeq r10, {r0-r9}
 mov pc, lr
 
 
 
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@
-@ Remove the breakpoints
-@
-clearimmediatebreakpoints:
-ldr r3,=immediatebreakpoints
-ldr r0,[r3,#-4] @ number of breakpoints
-clearimmediatebreakpoints_loop:
-ldr r1,[r3],#4 @ address
-ldr r2,[r3],#4 @ content
-str r2,[r1]
-subs r0,r0,#1
-bgt clearimmediatebreakpoints_loop
-mov r0,#0 @ all memory
-swi OS_SynchronizeCodeAreas
-mov pc,lr
 
 .end

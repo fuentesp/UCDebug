@@ -25,15 +25,22 @@
 .include  "s/Constants"
 
 .global   setfastbreakpoints
+.global	  immediatebreakpointnumber
+.global   immediatebreakpoints
+.global   setimmediatebreakpoints
+.global   clearimmediatebreakpoints
 .extern   CurContext
 .extern   BrkPtList
 .extern   CurNumBr
+.extern   CheckInstCond
+.extern	  validMemAddressRange
+.extern	  IRQFinishHandler
 
 .data
 
 .align 2
 immediatebreakpointnumber: .word 0
-immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
+immediatebreakpoints: .space 0x800 @256 pairs (address, instruction)
 
 .align 2
 
@@ -42,8 +49,7 @@ immediatebreakpoints: .space 0x80 @16 pairs (address, instruction)
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @
-@ Set breakpoints for go-fast mode (at every breakpoint established by the user
-@ and at every SWI whose execution is captured)
+@ Set breakpoints for go-fast mode (at every breakpoint established by the user)
 @
 setfastbreakpoints:
 ldr lr, =jtp
@@ -53,60 +59,6 @@ ldr r5, =immediatebreakpoints
 ldr r6, =immediatebreakpointnumber
 mov r0, #0
 str r0, [r6]   @ Reset # of breakpoints
-
-@ check the whole code (from the beginning of ELF file to beginning of data
-@ section)
-ldr r0, =AddrElfFile
-ldr r0, [r0]
-ldr r1, =AddrCodeEnd
-ldr r1, [r1]
-sfb_loop:
-ldr r2, [r0]           @ get instruction
-and r3, r2, #SWI_Mask
-cmp r3, #SWI_Mask
-bne sfb_checkinstr_end
-bic r2, r2, #Cond_Mask
-ldr r3, =Code_OSExit
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSWriteStr
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSWriteChar
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSGetChar
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSEnterOS
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSLeaveOS
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSClaimDeviceVector
-cmp r2, r3
-beq sfb_setbrk
-ldr r3, =Code_OSReleaseDeviceVector
-bne sfb_checkinstr_end
-
-sfb_setbrk:                    @ set a breakpoint
-ldr r2, =CurContext
-ldr r2, [r2, #60]               @ get PC
-cmp r2, r0
-beq sfb_checkinstr_end          @ do not place brkpt in current PC
-ldr r2, [r0]                   @ instruction to be saved
-str r0, [r5], #4               @ save address
-str r2, [r5], #4               @ save content
-str r4, [r0]                   @ set the bkpt
-ldr r3, [r6]
-add r3, r3, #1                 @ increase breakpoint counter
-str r3, [r6]                   @ store the breakpoint counter
-
-sfb_checkinstr_end:
-add r0, r0, #4
-cmp r0, r1
-blt sfb_loop
 
 @ Now checked the breakpoints established by the user;
 @ check if any matches one already set
@@ -137,8 +89,218 @@ bne sfb_loop2
 
 sfb_return:
 mov r0,#0 @ flags, 0 for all memory
+@ update the whole code (from the beginning of ELF file to beginning of data
+@ section)
+ldr r1, =AddrElfFile
+ldr r1, [r1]
+ldr r2, =AddrCodeEnd
+ldr r2, [r2]
 swi OS_SynchronizeCodeAreas
 
 ldmia sp!, {r4-r6, pc}
+
+
+
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ set a breakpoint in the loaded program after its pc and on potential branches
+@	Register use:
+@	-r0-r3: aux vars
+@	-r4: user PC
+@	-r5: next instruction to execute
+@	-r6: current context structure (bank of registers from the user)
+@	-r7: masked instruction (to execute and determine next PC)
+@
+setimmediatebreakpoints:
+stmdb sp!, {r4-r7, lr}
+bl loadAuxCurContext	@ update aux table to get regs from current user mode
+ldr r6, =AuxCurContext
+ldr r4, [r6, #60]	@ get PC
+ldr r5, [r4]		@ instruction to be executed
+
+@ Check if instruction will be executed; otherwise, next inst is PC+4
+and r0, r5, #Cond_Mask		@ get condition field from the instruction
+cmp r0, #Alw_Exec_Inst
+beq sib_checkbranch		@ inconditional exec, check type of inst
+
+				@ conditional execution
+lsr r0, r0, #28			@ place condition field at the least significant bits
+ldr r1, [r6, #OffCpsr]		@ load CPSR from CurContext
+bl CheckInstCond
+cmp r0, #0
+beq sib_nextinst		@ the instruction will not be exec'ed, next @ is PC+4
+
+sib_checkbranch:		@ check if the instruction is a B/BL
+and r0, r5, #BrInstMask		@ mask to get instruction type
+cmp r0, #BrInst
+bne sib_checkldm
+bic r0, r5, #0xFF000000		@ get 24-bit immediate field
+tst r0, #0x00800000		@ if the most significant bit is 1,
+orrne r0, r0, #0xFF000000	@ the imm is negative => extend the sign
+add r0, r4, r0, LSL #2		@ PC + immediate * 4
+add r0, r0, #8			@ + 8
+b sib_setbrk
+
+sib_checkldm:			@ check if the instruction is a LDM
+and r0, r5, #LdmInstMask	@ mask to get instruction type
+cmp r0, #LdmInst		@ check if the instruction is a LDM
+bne sib_checkdprs
+ands r0, r5, #MaskLdmPcField	@ check if the PC is updated in the LDM
+beq sib_nextinst		@ the PC will not be updated, next @ is PC+4
+ldr r0, =0x7FFF			@ mask to get the number of regs loaded, including PC
+and r0, r5, r0			@ list of regs loaded (1 bit per reg)
+mov r1, #0			@ counter of number of registers
+sib_loop_ldm:
+ands r2, r0, #1			@ test least significant bit
+addne r1, r1, #1		@ if bit=1, increase count
+lsrs r0, r0, #1			@ discard that bit
+bne sib_loop_ldm
+and r0, r5, #MaskRnField	@ get field 'register with the base address'
+ldr r0, [r6, r0, LSR #14]	@ base address=mem(CurContext+reg with base @ * 4)
+and r2, r5, #0x01800000		@ get addressing mode field from the instruction
+lsr r2, r2, #23
+cmp r2, #1
+ldreq r0, [r0, r1, LSL #2]	@ IA => base address + off * 4
+cmp r2, #2
+ldreq r0, [r0, #-4]		@ DB => base address - 4
+cmp r2, #3
+addeq r1, #1
+ldreq r0, [r0, r1, LSL #2]	@ IB => base address + (off * 4) + 4
+cmp r2, #0
+ldreq r0, [r0]			@ DA => base address
+b sib_setbrk
+
+sib_checkdprs:          	@ check if it is a data processing register shift
+ldr r0, =DprsInstMask		@ mask to get instruction type
+and r0, r5, r0
+cmp r0, #DprsInst
+bne sib_checkdpis
+and r0, r5, #MiscInstMask	@ mask to see if it is a misc instr
+cmp r0, #MiscInst		@ check if misc instr
+beq sib_nextinst
+and r0, r5, #MaskRdField	@ check if the dest reg is PC
+cmp r0, #MaskRdField
+bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRsField+MaskRmField
+bic r7, r5, r0			@ Clear 'cond', 'Rd', 'Rn', 'Rm' and 'Rs' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm+MaskR3asRs
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2, Rs=r3
+b sib_grfi_arg3
+
+sib_checkdpis:          	@ check if it is a load with reg offset or
+				@ a data processing immediate shift
+ldr r0, =LroInstMask		@ mask to get instruction type
+and r0, r5, r0
+cmp r0, #LroInst		@ check if load with reg offset
+ldrne r0, =DpisInstMask		@ mask to get instruction type
+andnes r0, r5, r0		@ check if data processing immediate shift
+bne sib_checkdpi
+ldr r0, =Misc2InstMask		@ mask to see if a misc instr
+and r0, r5, r0
+cmp r0, #Misc2Inst		@ check if it is a misc instr
+beq sib_nextinst
+and r0, r5, #MaskRdField	@ check if the dest reg is PC
+cmp r0, #MaskRdField
+bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField+MaskRmField
+bic r7, r5, r0			@ mask to clear 'cond', 'Rd', 'Rn', and 'Rm' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn+MaskR2asRm
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1, Rm=r2
+b sib_grfi_arg2
+
+sib_checkdpi:           	@ check if instruction is a data processing immediate
+				@ or a load with immediate offset
+and r0, r5, #DpiInstMask	@ mask to get instruction type
+cmp r0, #DpiInst		@ check if data processing immediate
+andne r0, r5, #LimInstMask
+cmpne r0, #LimInst		@ check if load immediate offset
+bne sib_nextinst		@ none of the instructions that affect PC, next @ is PC+4
+and r0, r5, #MaskRdField		@ check if the dest reg is PC
+cmp r0, #MaskRdField
+bne sib_nextinst		@ the PC will not be updated, next @ is PC+4
+ldr r0, =Cond_Mask+MaskRdField+MaskRnField
+bic r7, r5, r0			@ mask to clear 'cond', 'Rd', and 'Rn' fields
+ldr r0, =Alw_Exec_Inst+MaskR0asRd+MaskR1asRn
+orr r7, r7, r0			@ set cond=AL, Rd=r0, Rn=r1
+b sib_grfi_arg1
+
+sib_grfi_arg3:			@ load in r3 the value of the Rs from the inst
+and r3, r5, #MaskRsField	@ get Rs
+ldr r3, [r6, r3, LSR #6]	@ r3 = mem(CurContext + Rs * 4)
+sib_grfi_arg2:			@ load in r2 the value of the Rm from the inst
+and r2, r5, #MaskRmField	@ get Rm
+ldr r2, [r6, r2, LSL #2]	@ r2 = mem(CurContext + Rm * 4)
+sib_grfi_arg1:
+and r1, r5, #MaskRnField	@ get Rn
+ldr r1, [r6, r1, LSR #14]	@ r1 = mem(CurContext + Rn * 4)
+ldr r0, =GetResultFromInst
+str r7, [r0]			@ store instruction to exec it
+mov r0, #0 			@ flags, 0 for all memory
+swi OS_SynchronizeCodeAreas
+bl GetResultFromInst
+b sib_setbrk			@ set the breakpoint at the future PC
+
+sib_nextinst:			@ Consecutive execution: next inst is at PC+4
+add r0, r4, #4
+
+sib_setbrk:			@ Set the breakpoint
+@stmdb sp!, {r0-r3}              @ store context to keep it after function call
+@bl validMemAddressRange
+@cmp r0, #0
+@ldmia sp!, {r0-r3}
+sub sp, sp, #4
+str r1, [sp]
+ldr r1, =IRQFinishHandler
+cmp r0, r1
+ldr r1, [sp]
+add sp, sp, #4
+beq sib_end                     @ if address is IRQFinishHandler, do not place breakpoint
+ldr r1, [r0] 			@ instruction to be saved
+ldr r2, =immediatebreakpoints
+str r0, [r2], #4		@ save address
+str r1, [r2], #4		@ save content
+ldr r1, =BrkpInst
+str r1, [r0]			@ set the bkpt
+mov r0, #1			@ breakpoint counter
+ldr r1, =immediatebreakpointnumber
+str r0, [r1]			@ store the breakpoint counter
+
+mov r0,#0 @ flags, 0 for all memory
+swi OS_SynchronizeCodeAreas
+sib_end:
+ldmia sp!, {r4-r7, pc}
+
+
+GetResultFromInst:
+bkpt @brkpt to provoke a prefetch abort (this inst should be replaced)
+mov pc, lr
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@
+@ Remove the breakpoints
+@
+clearimmediatebreakpoints:
+ldr r3,=immediatebreakpoints
+ldr r0,[r3,#-4] @ number of breakpoints
+cmp r0,#0
+moveq pc,lr
+clearimmediatebreakpoints_loop:
+ldr r1,[r3],#4 @ address
+ldr r2,[r3],#4 @ content
+str r2,[r1]
+subs r0,r0,#1
+bgt clearimmediatebreakpoints_loop
+mov r0,#0 @ all memory
+swi OS_SynchronizeCodeAreas
+mov pc,lr
+
+
+
+
 
 .end

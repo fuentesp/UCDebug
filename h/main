@@ -31,8 +31,8 @@
 #define AppName				"UCDebug"
 #define AppPurpose			"ARM Debugger for RISC OS"
 #define AppAuthors			"ATC group | UC"
-#define AppVersion			"1.8.7"
-#define AppDate				" (31 - Mar - 2020)"
+#define AppVersion			"1.8.8"
+#define AppDate				" (15 - Sep - 2020)"
 #define SpriteName			"!ucdebug"
 #define TextFontName		"\\FCorpus.Medium"
 #define CharSizeX			19
@@ -77,7 +77,7 @@
 #define OffStartData		0x9000
 #define DebugAreaSize		0x20000
 #define StackSize			0x1E00
-#define MaxBrPoints			15
+#define MaxBrPoints			256
 
 #define PC_FG_Colour		0x7	/* BLACK */
 #define PC_BG_Colour		0xA	/* LIGHT_GREEN */
@@ -105,6 +105,7 @@
 #define Ex_DnA				0x1500
 #define Ex_DnR				0x1600
 #define Ex_VFP				0x1700
+#define Ex_TMB				0x1800
 #define StateByteMask		0xFF00
 #define StateTypeMask		0xF000
 #define CmdByteMask			0x00FF

@@ -27,12 +27,15 @@
 .global   EnableFPU
 .global   DefCurCtx
 .global   DefStackCtx
+.global   ResetIRQtable
 .extern   CurContext
 .global   AuxCurContext
 .extern   DebugAreaEnd
 .global   loadAuxCurContext
 .global   InitializeDbgKernel
 .extern   ControllerBaseAddress
+.global	  SWIReadChar
+.extern	  Device
 
 .data
 
@@ -41,6 +44,15 @@ AuxCurContext:		.space 18*4	@ reserve space for 18 regs (R0-r15+CPSR+SPSR)
 CtxModeAddrTable:	.word 0, CurContext+268, CurContext+236, CurContext+200, CurContext+52, CurContext+52, CurContext+52, CurContext+212, CurContext+52, CurContext+52, CurContext+52, CurContext+224
 
 .text
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Function used to execute the OS_ReadC SWI
+SWIReadChar:
+ldr r1, =CurContext
+swi OS_ReadC
+str r0, [r1]
+mov pc, lr
+
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @ Function to activate the FPU (must be executed in privileged mode)
@@ -142,6 +154,16 @@ str r3, [r0, #52]       @ Usr sp (will later be updated, when loading program)
 mov pc, lr
 
 @
+@ Clear IRQ table (mainly for reloading codes)
+@
+ResetIRQtable:
+ldr r0, =drivercount
+mov r1, #0
+str r1, [r0] @ set counter to zero
+
+mov pc, lr
+
+@
 @ Update the context from the current user mode
 @
 loadAuxCurContext:
@@ -178,6 +200,7 @@ ldmia sp!, {r0-r12, pc}
 InitializeDbgKernel:
 @ Determine underlying chipset, and load one base interrupt register
 @ address or another, depending on which chipset is used.
+@ It also maps the systimer and saves the address in a global variable.
 swi OS_EnterOS
 mrc P15, 0, r0, C0, C0, 0	@ Read CPU ID from Coprocessor 15 reg 0
 swi OS_LeaveOS
@@ -195,6 +218,15 @@ mov r2, #0x228			@ 10 IRQ regs + 0x200 offset
 swi OS_Memory
 ldr r0, =ControllerBaseAddress
 str r3, [r0]			@ store base address for IRQ regs
+
+@ Maps the timer to memory
+mov r0, #13
+ldr r1, =STBASE
+mov r2, #0x100
+swi 0x68 @ OS_Memory
+ldr r0,=Device
+str r3,[r0] @ Store the address of the timer
 mov pc, lr
+
 
 .end

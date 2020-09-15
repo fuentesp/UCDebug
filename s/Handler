@@ -28,16 +28,26 @@
 .global   UndefinedInstructHandler
 .global   DataAbortHandler
 .global   IRQHandler
+.global	  SWIHandler
 .global   ReleaseHandler
 .global   IRQregBkup @just for prefteching
+.global   IRQFinishHandler
+.global   GFHandler
 .extern   CurContext
 .extern   ExecType
 .extern   ControllerBaseAddress
+.extern   DbgControllerMask
+.extern   UsrControllerMask
+.extern   drivercount
+.extern   drivertable
+.extern   Device
 
 .data
 
 .align 2
 IRQregBkup:	.space 24	@ Space to store temp regs (r0-r3, r12) and prev PC
+SWIreturnAdress: .space 4
+PendingGetChar:  .word 0
 
 .text
 
@@ -263,12 +273,50 @@ orr r1, r1, #0xF                @ Mask for fault status
 and r0, r0, r1
 cmp r0, #0x7
 bne mDAb			@ If fault!=0b0111, mark as data abort
-mrc p15, 0, r0, cr6, cr0, 0	@ Conflict address
-mov r1, r0
-swi OS_ValidateAddress
-bcs mDAb			@ If C flag active, address is outside valid range
+mrc p15, 0, r1, cr6, cr0, 0	@ Conflict address
+mov r0, #24
+mov r2, r1
+
+msr cpsr, #MaskSvcMode+MaskDisInt @ Change to supervisor mode
+@ Change the SPSR to return in system mode
+mrs r3, cpsr
+orr r3, r3, #MaskSysMode
+msr spsr, r3
+
+ldr r3,=HandSWIRel
+ldr lr, =SWIMemoryDataAbort
+ldr pc, [r3]
+swi OS_Memory
+SWIMemoryDataAbort:
+
+tst r1, #Partially_Phys
+moveq r3, #1
+andeq r1, r1, #Completly_User_RW+Completly_Priv_RW
+ldrne r3, =Completly_User_RW+Completely_Phys
+andne r1, r1, r3
+cmp r1, r3
+bhs ValidAddress @ If r1 is equal or higher than r2 the address is in valid range
+mov r1, #0x6D @ Service_ValidateAddress
+mov r3, r2 @ addresses to check
+
+msr cpsr, #MaskSvcMode+MaskDisInt @ Change to supervisor mode
+@ Change the SPSR to return in system mode
+mrs r3, cpsr
+orr r3, r3, #MaskSysMode
+msr spsr, r3
+
+
+ldr r4,=HandSWIRel
+ldr lr, =SWIServiceCallDataAbort
+ldr pc, [r4]
+swi 0x30 @ OS_ServiceCall
+SWIServiceCallDataAbort:
+teq r1, #0
+bne mDAb
+
+ValidAddress:
 ldr r0, =PrefetchAddress	@ If valid address, store it to prefetch in
-str r1, [r0]			@ the next loop,
+str r2, [r0]			@ the next loop,
 b ReleaseHandler		@ and do not mark data abort
 
 @ mark Data Abort
@@ -300,6 +348,7 @@ vmrs r3, FPSCR
 str r3, [r2] @ write FPSCR
 mrs r3, spsr
 str r3, [r0, #OffIrqRegs+8] @ write IRQ SPSR in its place
+str r3, [r0, #OffCpsr] @ it is also the user CPSR
 str sp, [r0, #OffIrqRegs] @ write IRQ sp
 str lr, [r0, #OffIrqRegs+4] @ write IRQ lr
 orr r3, r3, #MaskDisIRQs	@ Disable interrupts and imprecise aborts
@@ -336,6 +385,18 @@ mrs r3, cpsr
 orr r3, r3, #MaskDisIRQs	@ Disable interrupts and imprecise aborts
 orr r3, r3, #MaskSysMode
 msr cpsr, r3 		@ switch to sys mode
+
+@ Check if the interrupt is associated with the Go-Fast mode
+ldr r0, =TimerID
+ldr r0, [r0]
+mov r1, #1
+lsl r0, r1, r0 @ translate ID to bit position
+ldr r1, =ControllerBaseAddress
+ldr r1,[r1]
+ldr r2, [r1, #0x204]
+tst r0, r2
+bne GFHandler
+
 @ Check if entry has an associated driver in the table
 ldr r0, =drivercount
 ldr r0, [r0]
@@ -390,53 +451,13 @@ b ReleaseHandler
 @ context.
 @
 IRQFinishHandler:
-mrs r2, cpsr
-ands r1, r2, #0xF
-swieq 0x16			@ if in user mode, switch to SVC
-orr r2, r2, #MaskDisIRQs	@ disable IRQs
-orr r2, r2, #MaskSysMode
-msr cpsr, r2			@ switch to SYS mode
-@@ Save context from all modes, starting from SYS mode
-ldr r0, =CurContext
-add r1, r0, #16                 @ write program r4-r14 in CurContext (remember
-stm r1, {r4-r14}		@ that r0-r3 & r12 are restored later from bkup)
-add r1, r0, #OffFPRegs
-vstm r1!, {s0-s31} 		@ write floating-point regs
-vmrs r3, FPSCR
-str r3, [r1] 			@ write FPSCR
-bic r2, r2, #0xD		@ switch from SYS to IRQ
-msr cpsr, r2
-mrs r3, spsr
-str r3, [r0, #OffIrqRegs+8]	@ write IRQ SPSR in its place
-str sp, [r0, #OffIrqRegs]	@ write IRQ sp
-str lr, [r0, #OffIrqRegs+4]	@ write IRQ lr
-orr r2, r2, #0x9		@ switch from IRQ to Undefined mode
-msr cpsr, r2
-str sp, [r0, #OffUndRegs]	@ write undefined sp
-str lr, [r0, #OffUndRegs+4]	@ write undefined lr
-mrs r3, spsr
-str r3, [r0, #OffUndRegs+8]	@ write undefined SPSR in its place
-bic r2, r2, #0x8
-msr cpsr, r2 			@ switch from undefined to Supervisor mode
-mrs r3, spsr
-str r3, [r0, #OffSvcRegs+8]	@ write supervisor SPSR in its place
-str sp, [r0, #OffSvcRegs]	@ write supervisor sp
-str lr, [r0, #OffSvcRegs+4]	@ write supervisor lr
-orr r2, r2, #0x4
-msr cpsr, r2 			@ switch from supervisor to Abort mode
-mrs r3, spsr
-str sp, [r0, #OffAbtRegs]	@ write abort sp
-str lr, [r0, #OffAbtRegs+4] 	@ write abort lr
-str r3, [r0, #OffAbtRegs+8]	@ write abort SPSR
-bic r2, r2, #0x6
-msr cpsr, r2			@ switch from Abort to FIQ mode
-mrs r3, spsr
-str r3, [r0, #OffFiqRegs+28]	@ write FIQ SPSR in its place
-add r3, r0, #OffFiqRegs
-stm r3, {r8-r14} 		@ write FIQ specific regs
-orr r2, r2, #MaskSysMode	@ switch back to SYS mode
-msr cpsr, r2
+swi OS_EnterOSAndSave
+msr cpsr, #MaskSysMode+MaskDisInt @ Change to SYS mode
 
+
+
+
+ldr r0, =CurContext
 ldr r1, =IRQregBkup
 ldmia r1!, {r2-r5}
 stm r0, {r2-r5}			@ restore bkup of user temp regs (r0-r3)
@@ -447,6 +468,321 @@ str r2, [r0, #60]
 ldr r1, [r0, #OffIrqRegs+8]	@ get SPSR from user IRQ mode
 str r1, [r0, #OffCpsr]		@ and restore it in user CPSR
 b ReleaseHandler
+
+
+
+
+
+SWIHandler:
+@ Save context from all modes, starting from Supervisor mode.
+str r0, [sp, #-4]!
+ldr r0,=CurContext
+stm r0,{r0-r12}
+ldr r1, [sp], #4
+str r1, [r0]		@ write program r0 in its place in CurContext
+str lr, [r0, #60] 	@ write program pc in its place (it is lr while in software interruption)
+add r2, r0, #OffFPRegs
+vstm r2!, {s0-s31} @ write floating-point regs
+vmrs r3, FPSCR
+str r3, [r2] @ write FPSCR
+mrs r3, spsr
+str sp, [r0, #OffSvcRegs] @ write abort sp
+str lr, [r0, #OffSvcRegs+4] @ write abort lr
+str r3, [r0, #OffSvcRegs+8] @ write abort SPSR
+str r3, [r0, #OffCpsr] @ write program CPSR (copied to SPSR when accessing excep)
+mov r4, #MaskDisIRQs
+orr r3,r4, #MaskSysMode			@ Disable interrupts and imprecise aborts
+msr cpsr, r3 @ switch to system mode to access remaining user regs
+str sp, [r0, #52] @ write program sp in its place
+str lr, [r0, #56] @ write program lr in its place
+bic r3, r3, #0x4
+msr cpsr, r3 @ switch from System to Undefined mode
+str sp, [r0, #OffUndRegs] @ write undefined sp
+str lr, [r0, #OffUndRegs+4] @ write undefined lr
+mrs r2, spsr
+str r2, [r0, #OffUndRegs+8] @ write undefined SPSR in its place
+orr r3,r4, #MaskAbtMode
+msr cpsr, r3 @ switch from Sys to Abt mode
+mrs r2, spsr
+str r2, [r0, #OffAbtRegs+8] @ write Abt SPSR in its place
+str sp, [r0, #OffAbtRegs] @ write Abt sp
+str lr, [r0, #OffAbtRegs+4] @ write Abt lr
+orr r3,r4, #MaskIrqMode
+msr cpsr, r3 @ switch from Und to IRQ mode
+mrs r2, spsr
+str r2, [r0, #OffIrqRegs+8] @ write IRQ SPSR in its place
+str sp, [r0, #OffIrqRegs] @ write IRQ sp
+str lr, [r0, #OffIrqRegs+4] @ write IRQ lr
+orr r3,r4, #MaskFiqMode
+msr cpsr, r3 @ switch to FIQ mode
+mrs r2, spsr
+str r2, [r0, #OffFiqRegs+28] @ write FIQ SPSR in its place
+add r2, r0, #OffFiqRegs
+stm r2, {r8-r14} @ write FIQ specific regs
+mrs r0, cpsr
+bic r0, r0, #MaskSysMode
+orr r0, r0, #MaskSvcMode
+msr cpsr, #MaskSvcMode+MaskDisInt @ switch to Supervisor mode
+
+ldr r0, [lr, #-4] @ Load the code of the SWI
+bic r0, r0, #Cond_Mask @ Obtain the code of only the SWI (we don't need the conditional flags)
+
+checkinstr1: @ Check for SWI OS_Exit (0x11)
+ldr r1, =Code_OSExit
+cmp r0, r1
+bne Else_checkinstr1
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #Prg_End
+str r0, [r1] @ Change ExecType to Prg_End
+b End_checkinstr
+
+Else_checkinstr1: @ Check for SWI OS_Write0 (0x02)
+ldr r1, =Code_OSWriteStr
+cmp r0, r1
+bne Else_checkinstr2
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #SWI_WrL
+str r0, [r1] @ Change ExecType to SWI_WrL
+b End_checkinstr
+
+Else_checkinstr2: @ Check for SWI OS_WriteC (0x00)
+ldr r1, =Code_OSWriteChar
+cmp r0, r1
+bne Else_checkinstr3
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #SWI_WrC
+str r0, [r1] @ Change ExecType to SWI_WrC
+b End_checkinstr
+
+Else_checkinstr3: @ Check for SWI OS_ReadC (0x04)
+ldr r1, =Code_OSGetChar
+cmp r0, r1
+bne Else_checkinstr4
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #SWI_GeC
+str r0, [r1]		@ Update ExecType, to ensure it goes to GUI
+b End_checkinstr
+
+
+Else_checkinstr4: @ Check for SWI OS_EnterOS (0x16)
+ldr r1, =Code_OSEnterOS
+cmp r0,r1
+bne Else_checkinstr5
+ldr r2,=CurContext
+ldr r1, [r2, #OffCpsr]		@ CPSR
+str r1, [r2, #OffSvcRegs+8]	@ Store previous CPSR in svc SPSR
+bic r1, r1, #MaskSysMode
+orr r1, r1, #MaskSvcMode
+str r1, [r2, #OffCpsr]		@ Update CPSR with the SVC user mode
+ldr r1, [r2, #60]
+str r1, [r2, #OffSvcRegs+4]	@ Store previous PC in LR
+b SWI_ReturnToUserCode
+
+Else_checkinstr5: @ Check for SWI OS_LeaveOS (0x7C)
+ldr r1, =Code_OSLeaveOS
+cmp r0,r1
+bne Else_checkinstr6
+ldr r2,=CurContext
+ldr r1, [r2, #OffCpsr]	 	@CPSR
+bic r1, r1, #MaskSysMode-MaskUsrMode
+str r1, [r2, #OffCpsr]		@Update CPSR with User mode
+b SWI_ReturnToUserCode
+
+
+Else_checkinstr6: @ Check for SWI OS_ClaimDeviceVector (0x4B)
+ldr r1, =Code_OSClaimDeviceVector
+cmp r0, r1
+bne Else_checkinstr7
+ldr r5,=CurContext
+ldr r0, [r5]		@ Check if the device should be used
+cmp r0, #64
+bge NotRunClaimDev
+@ check if interrupt already in GUI
+ldr r1, =DbgControllerMask
+cmp r0, #32
+mov r3, r0
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+subge r3, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
+ldr r1, [r1]
+mov r2, #1
+lsl r2, r2, r3		@ translate device number into its bit within mask
+tst r1, r2
+bne NotRunClaimDev	@ device already in Dbg mask, should not be used
+@ place interrupt in user mask and update it in the controller
+ldr r1, =UsrControllerMask
+ldr r4, =ControllerBaseAddress
+ldr r4, [r4]
+cmp r0, #32
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+addge r4, r4, #4        @ and do the same with the controller address
+subge r0, r0, #32       @ use offset within corresponding reg (IRQ 1 or 2)
+ldr r3, [r1]
+orr r3, r3, r2
+str r3, [r1]		@ add this device number to interrupt mask
+str r3, [r4, #0x21C]    @ update the mask in the controller
+@ add interrupt routine to driver table
+ldr r0, =drivercount
+ldr r1, [r0]
+ldr r3, =drivertable
+add r3, r3, r1, LSL #2
+add r3, r3, r1, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
+add r1, r1, #1		@ increase number of active drivers
+str r1, [r0]
+ldm r5, {r0-r2}		@ load user regs r0-r2 (device number, driver @, R12 val)
+stm r3, {r0-r2}		@ store values in driver table entry
+b SWI_ReturnToUserCode
+NotRunClaimDev:
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #Ex_DnA	@ Throw error: this device cannot be used (Device Not Available)
+str r0, [r1]
+b End_checkinstr
+
+
+Else_checkinstr7: @ Check for SWI OS_ReleaseDeviceVector (0x4C)
+ldr r1, =Code_OSReleaseDeviceVector
+cmp r0, r1
+bne Else_checkinstr8
+ldr r5, =CurContext
+ldr r0, [r5]		@ load user reg r0 (device number)
+ldr r1, =drivercount
+ldr r2, [r1]
+ldr r3, =drivertable
+add r3, r3, r2, LSL #2
+add r3, r3, r2, LSL #3	@ multiply by 12 to account 12 bytes per driver entry
+E_c7_fori:
+cmp r2, #0
+beq NotSetDev		@ if specified device is not in the table, throw error
+ldr r4, [r3, #-12]!	@ it starts loop pointing past last element in driver table
+sub r2, r2, #1
+cmp r4, r0
+bne E_c7_fori
+ldr r0, [r5, #4]	@ load user reg r1 (routine address)
+ldr r4, [r3, #4]	@ get routine address from entry in driver table
+cmp r0, r4
+ldrne r0, [r5]		@ restore in r0 the device number and jump back to the
+bne E_c7_fori		@ loop if the addresses do not match
+ldr r0, [r5, #8]	@ load user reg r2 (r12 value at entry of the routine)
+ldr r4, [r3, #8]	@ get r12 value from entry in driver table
+cmp r0, r4
+ldrne r0, [r5]		@ if values do not match, reload device number and go back to
+bne E_c7_fori		@ the loop
+@ released device matches entry in table... remove entry (pushing forward any
+@ entries behind), decrease number of drivers, and remove interrupt from user mask
+ldr r4, [r1]
+sub r4, r4, #1		@ decrease number of drivers for 2 reasons: to update value,
+E_c7_forj:              @ and because last entry has to be cleared
+cmp r2, r4
+bge E_c7_endfor
+stmdb sp!, {r0-r2}
+add r0, r3, #12		@ pointer to next entry
+ldm r0, {r0-r2}		@ load values from entry
+stm r3, {r0-r2}		@ store in entry-1
+ldmia sp!, {r0-r2}
+add r3, r3, #12		@ move pointer forward
+add r2, r2, #1
+b E_c7_forj		@ go to the beginning of the loop
+E_c7_endfor:
+str r4, [r1]		@ update number of drivers
+ldr r0, [r5]		@ get device number
+ldr r1, =UsrControllerMask
+ldr r4, =ControllerBaseAddress
+ldr r4, [r4]
+cmp r0, #32
+addge r1, r1, #4	@ if device>=32, get IRQ 2
+addge r4, r4, #4
+subge r0, r0, #32	@ convert dev id to offset within current set of ids (IRQ 1 or 2)
+ldr r3, [r1]
+mov r2, #1
+lsl r2, r2, r0		@ translate device number into its bit within mask
+bic r3, r3, r2
+str r3, [r1]		@ remove this device number from the interrupt mask
+str r3, [r4, #0x21C]    @ and also from the controller
+b SWI_ReturnToUserCode
+NotSetDev:
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #Ex_DnR	@ Throw error for Device not Released
+str r0, [r1]
+b End_checkinstr
+
+
+Else_checkinstr8: @ Check for own SWI OS_EnterOSAndSave (0x45)
+ldr r1, =Code_OSEnterOSAndSave
+cmp r0, r1
+bne SWI_NotCaptured
+@ Prefetching of the address we need
+ldr r0, [lr]
+mov pc, lr
+
+
+End_checkinstr:
+msr CPSR, #MaskSysMode+MaskDisInt @ Switch from Supervisor to System mode
+b ReleaseHandler
+
+
+@ If the captured SWI does not need to go back to the GUI,
+@ return directly to the user code
+SWI_ReturnToUserCode:
+@ Restore user context
+ldr r0,=CurContext
+ldr sp, [r0, #OffSvcRegs] @ load svc sp
+ldr lr, [r0, #OffSvcRegs+4] @ load svc lr
+ldr r2, [r0, #OffSvcRegs+8]
+msr spsr, r2 @ load svc SPSR
+mrs r1, cpsr
+orr r1, r1, #0x1F
+msr cpsr, r1 @ switch to system mode to access remaining user regs
+ldr r1, =AuxCurContext
+ldm r0, {r2-r4}		@ get user R0-R2
+ldr r5, [r0, #60]	@ and user PC
+stm r1, {r2-r5}	@ store them away in an aux var
+add r2, r0, #8
+ldm r2, {r2-r12} @ load regs from usr mode
+ldr r2,[r0,#OffCpsr]
+msr CPSR, r2		@ load usr CPSR
+ldm r1, {r0-r2, pc}	@ jump back to user program
+
+
+
+SWI_NotCaptured:
+@ change ExecType
+ldr r1, =ExecType
+ldr r0, [r1]
+add r0, r0, #SWI_NC	@ Change ExecType to SWI_NC
+str r0, [r1]
+msr CPSR, #MaskSysMode+MaskDisInt @ Switch from Supervisor to System mode
+b ReleaseHandler
+
+
+
+
+@
+@ This handler is actually a routine called within the debugger code
+@ in case the Go-Fast system timer has timed-out. It is hence called in
+@ system mode, and jumps directly to ReleaseHandler.
+@
+GFHandler:
+@ Acknoledge interrupt
+ldr r0,=Device
+ldr r0, [r0]
+mov r9, #timer_int_bit
+str r9, [r0,#STCS]
+@ Timer counter update
+ldr r1, [r0,#STCL0]
+add r1, #GF_Timer_Cycles
+str r1, [r0, #STC2]
+b ReleaseHandler
+
+
 
 
 ReleaseHandler:
@@ -501,6 +837,51 @@ add r5, r4, #0x21C
 str r1, [r5], #4                @ Disable all interrupts
 str r2, [r5], #4		@ one by one (a stm produces weird
 str r3, [r5], #4		@ effects)
+
+msr cpsr, #MaskSvcMode+MaskDisInt @ Change to supervisor mode
+@ Change the SPSR to return in system mode
+mrs r0, cpsr
+orr r0, r0, #MaskSysMode
+msr spsr, r0
+
+@ Release SWI handler
+ldr lr,=SWI_release_end @ Load in the lr the next instruction to the SWI we want the RISC OS handler to execute
+mov r0,#0x2 @ release + SWI
+ldr r1,=HandSWIRel
+ldr r1,[r1] @ recover RISC OS handler
+ldr r2,=SWIHandler @ remove our handler
+mov pc, r1 @ Jump to the RISC OS SWI handler
+swi OS_ClaimProcessorVector @ Is not gonna get executed directly
+SWI_release_end:
+
+@ Release data abort handler
+mov r0,#0x4 @ release + data abort
+ldr r1,=HandDatRel
+ldr r1,[r1] @ recover RISC OS handler
+ldr r2,=DataAbortHandler @ remove our handler
+swi OS_ClaimProcessorVector
+
+@ Release undefined instruction handler
+mov r0,#0x1 @ release + UNdefined instruction
+ldr r1,=HandUndRel
+ldr r1,[r1] @ recover RISC OS handler
+ldr r2,=UndefinedInstructHandler @ remove our handler
+swi OS_ClaimProcessorVector
+
+@ Release prefetch abort handler
+mov r0,#0x3 @ release + prefetch abort
+ldr r1,=HandPreRel
+ldr r1,[r1] @ recover RISC OS handler
+ldr r2,=PrefetchAbortHandler @ remove our handler
+swi OS_ClaimProcessorVector
+
+@ Release IRQ handler
+mov r0,#0x6 @ release + IRQ
+ldr r1,=HandIRQRel
+ldr r1,[r1] @ recover RISC OS handler
+ldr r2,=IRQHandler @ remove our handler
+swi OS_ClaimProcessorVector
+
 ldr r0, =DbgControllerMask
 ldm r0, {r1-r3}
 add r5, r4, #0x210
@@ -511,30 +892,6 @@ add r5,r4,#0x20C @FIQ control
 ldr r0,[r5]
 orr r0,r0,#0x80 @Enable fiq
 str r0,[r5]
-
-ldr r0,=HandDatRel
-ldr r1,[r0]
-mov r0,#0x4 @ release + data abort
-ldr r2,=DataAbortHandler
-swi OS_ClaimProcessorVector
-
-ldr r0,=HandUndRel
-ldr r1,[r0]
-mov r0,#0x1 @ release + UNdefined instruction
-ldr r2,=UndefinedInstructHandler
-swi OS_ClaimProcessorVector
-
-ldr r0,=HandPreRel
-ldr r1,[r0]
-mov r0,#0x3 @ release + prefetch abort
-ldr r2,=PrefetchAbortHandler
-swi OS_ClaimProcessorVector
-
-ldr r0,=HandIRQRel
-ldr r1,[r0]
-mov r0,#0x6 @ release + IRQ
-ldr r2,=IRQHandler
-swi OS_ClaimProcessorVector
 
 ldr r0,=ReturnHandler
 ldr lr,[r0]
