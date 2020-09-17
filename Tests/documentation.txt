@@ -1,0 +1,108 @@
+These tests attempt to be a fail-safe mechanism for further development of the debugger code. Each test has to be run separately (or after another, depending on the functionality), and prints back a success message or gives an error description describing what happened.
+
+The tests are organized into 3 separate categories. However, all tests can be compiled at once through the "compile" Obey file (or alternatively, by using the 'make' command in a Task Window with the directory as CSD). Test should be run in increasing sequence number, since most build up on previous checkings, starting with SWI tests (s***) and following with Mode tests (mo***) and Reset tests (r***). Following this order lets the tester know more easily which functionality is not performing adequately.
+
+
+*** SWI tests ***
+
+-Test s001
+
+Tested functionality: SWI OS_ExitOS (0x11)
+Input: (None)
+Expected Output: program ends normally and the debugger shows the message "Program execution has finished" in the Console window.
+
+-Test s101
+
+Tested functionality: SWI OS_WriteC (0x00)
+Input: (None)
+Expected Output: program opens the I/O Console window and prints the following string: 1@* +;[_Ftñáçº
+
+-Test s201
+
+Tested functionality: SWI OS_Write0 (0x02)
+Input: (None)
+Expected Output: program opens the I/O Console window and prints the following string: 1@* +;[_Ftñáçº
+
+-Test s301
+
+Tested functionality: SWI OS_ReadC (0x04)
+Input: once the program is running, the user has to introduce the following characters: "@* +;[_Ftñáçº"
+Expected Output: program prints through the I/O Console window the characters inserted by the user.
+
+-Test s401
+
+Tested functionality: SWI OS_EnterOS (0x16)
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected; otherwise it shows "There has been an error on the reg:" followed by the name of the first register in which an error was found.
+
+-Test s501
+
+Tested functionality: SWI OS_LeaveOS (0x7c)
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected; otherwise it shows "There has been an error on the reg:" followed by the name of the first register in which an error was found.
+
+-Test s601
+
+Tested functionality: SWI OS_ConvertInteger4 (0xDC). This test checks the behavior of a simple non-captured SWI, to ensure the passing of arguments and results from the OS service is correctly performed.
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected; otherwise, it notifies the register whose returned value does not conform to the specifications.
+
+-Test s701
+
+Tested functionality: SWI OS_Hardware (0x7A) with option '0' (call HAL routine). This test checks the behavior of a non-captured SWI whose execution is known to cause errors when performed with the debugger handlers in place, therefore it verifies the correct restoration of the OS handlers.
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected. Otherwise, it displays the register whose value after execution does not correspond to a proper execution. If the OS handlers are not correctly restored, the execution of this test could also provoke a Data Abort within the debugger code (affecting address outside user scope).
+
+-Test s801
+
+Tested functionality: SWIs OS_ClaimDeviceVector (0x4B) & OS_ReleaseDeviceVector (0x4C)
+Input: (None)
+Expected Output: program prints the message "Interruption detected" if no errors are found. Otherwise, it will either print "Register in claim not preserved" or "Register in release not preserved" if any register used for the call to the SWIs OS_ClaimDeviceVector or OS_ReleaseDeviceVector, respectively, was not preserved after the call. The program can also get stuck in an infinite loop if no interrupts are detected; in that case, the execution needs to be forcefully halted through the 'stop' command.
+
+-Tests s802/s803
+
+Tested functionality: SWIs OS_ClaimDeviceVector (0x4B) & OS_ReleaseDeviceVector (0x4C)
+Input: these tests are expected to be run one after another, and then the second test (803) in a standalone fashion (e.g., after starting the debugger).
+Expected Output: test 802 prints the message "Interruption detected" if no errors are found, or continues executing an infinite loop otherwise. Test 803 should trigger a debugger error with the message "Device 3 has been released without claiming", either after loading and executing test 802 or working standalone. It can also print the message "Test NOT passed: unclaimed device has been released" if the debugger does not properly handle resetting the IRQ table.
+
+
+
+*** Mode tests ***
+
+- Tests mo001/mo101/mo201/mo301/mo401
+
+Tested functionality: preserving registers when entering a new processor execution mode.
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected. Otherwise, it displays the first register whose state does not match the expected outcome.
+
+- Tests mo002/mo102/mo202/mo302/mo402
+
+Tested functionality: preserving registers when exiting a new processor execution mode.
+Input: (None)
+Expected Output: program prints the message "Test ended without errors" if no errors are detected. Otherwise, it displays the first register whose state does not match the expected outcome.
+
+[These tests do not check the handling of entering and exiting SVC mode, since that was checked with the behavior of SWIs OS_EnterOS and OS_LeaveOS (tests s401/s501)]
+
+
+
+*** Reset tests ***
+
+- Tests r101/r102
+
+Tested functionality: reset of CPSR state when loading a new program.
+Input: these tests are expected to be loaded and run one after another.
+Expected Output: second test (r102) prints the message "Test ended without errors" if the CPSR was properly reset. In any other case, the program displays the first CPSR flag whose value differs from its default.
+
+- Tests r200/r201/r203/r204/r205/r206
+
+Tested functionality: reset of CPU execution mode when loading a new program.
+Input: first a test r20X is loaded and run, and then test r200 is used.
+Expected Output: the first test run (r201/r202/...) does not give any output. Program r200 prints the message "Test ended sucessfully" if no errors are detected. Otherwise, it will print a message warning that the CPU execution mode was not reset to the default "User" execution mode.
+
+- Tests r301/r302
+
+Tested functionality: reset of stack pointers when loading a new program.
+Input: these tests are expected to be loaded and run one after another.
+Expected Output: program prints the message "Test ended successfully" if the stack of all processor execution modes was properly reset. If not, it will print the name of the first tested execution mode whose stack pointer was not adequately reset. It can also show an error message if the auxiliary file (used to communicate between the 2 programs the correct stack pointer value at the beginning) cannot be opened.
+
+
