@@ -220,8 +220,19 @@ ldr r0, =ControllerBaseAddress
 str r3, [r0]			@ store base address for IRQ regs
 
 @ Maps the timer to memory
+swi OS_EnterOS
+mrc P15, 0, r0, C0, C0, 0	@ Read CPU ID from Coprocessor 15 reg 0
+swi OS_LeaveOS
+ldr r2, =BCM2835_id
+cmp r0, r2
+ldreq r1, =Pi1_ST_Addr		@ base address for System Timer controller
+ldr r2, =BCM2836_id
+cmp r0, r2
+ldreq r1, =Pi2_ST_Addr		@ base address for System Timer controller
+ldr r2, =BCM2837_id
+cmp r0, r2
+ldreq r1, =Pi2_ST_Addr		@ base address for SysTimer controller (same for Pi2 and Pi3)
 mov r0, #13
-ldr r1, =STBASE
 mov r2, #0x100
 swi 0x68 @ OS_Memory
 ldr r0,=Device

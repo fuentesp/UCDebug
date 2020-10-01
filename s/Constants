@@ -15,6 +15,16 @@
 .equ	BCM2837_id,		0x410FD034
 .equ	Pi1_Irq_Addr,		0x2000B000
 .equ	Pi2_Irq_Addr,		0x3F00B000
+.equ	Pi1_ST_Addr,		0x20003000
+.equ	Pi2_ST_Addr,		0x3F003000
+
+@ Timer constants
+.equ 	 GF_Timer_Cycles, 0x10000
+.equ 	 STCS,  		  0x00
+.equ 	 STCL0, 		  0x04
+.equ 	 STC2,  		  0x14
+.equ     timer_int_bit,	  0x04
+.equ     irq_int_bit,     0b100
 
 @ Offsets to handle CurContext structure
 .equ	OffCpsr,		64
@@ -130,12 +140,3 @@
 .equ     Completely_Phys,	0x100
 .equ     Completly_User_RW,	0x3
 .equ     Completly_Priv_RW,	0xC
-
-/* Timer constants */
-.equ 	 GF_Timer_Cycles, 0x10000
-.equ 	 STBASE, 		  0x20003000
-.equ 	 STCS,  		  0x00
-.equ 	 STCL0, 		  0x04
-.equ 	 STC2,  		  0x14
-.equ     timer_int_bit,	  0x04
-.equ     irq_int_bit,     0b100
