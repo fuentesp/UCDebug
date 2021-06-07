@@ -743,8 +743,16 @@ ldr r0, =replaceswi
 str r1, [r0]		@ Substitute the instruction with the SWI we need to execute
 mov r0, #0 			@ flags, 0 for all memory
 swi OS_SynchronizeCodeAreas
-@ Check if the SWI was executed in FIQ mode
+@ Get execution flags from user CPSR
 ldr r0, [r10, #OffCpsr]
+and r1, r0, #MaskCpsrFlags	@ Extract previous user flags
+bic r2, r0, #MaskCpsrFlags	@ Preserve user CPSR without flags
+mrs r3, CPSR
+bic r3, #MaskCpsrFlags
+orr r3, r1, r3	@ Get current CPSR with user flags
+str r2, [sp, #-4]!	@ Save previous user CPSR without flags
+str r3, [sp, #-4]!	@ Save updated CPSR to set it before running SWI
+@ Check if the SWI was executed in FIQ mode
 and r0, r0, #MaskSysMode
 subs r12, r0, #MaskFiqMode
 @ Load the registers we could need for the SWI
@@ -752,14 +760,22 @@ ldm r10, {r0-r9}
 @ If we need the FIQ regs
 addeq r11, r10, #OffFiqRegs
 ldmeq r11, {r8, r9}
+ldr r11, [sp], #4	@ Update CPSR for the execution of the SWI
+msr CPSR, r11
 replaceswi:
 bkpt @ bkpt to provoke a prefetch abort (this inst should be replaced)
-@ Store the result in the user context
+@ Store the result in the user context; first common regs (R0-R7), then CPSR, and finally R8-R9
+@	(distinguishing between FIQ and other modes)
+mov r11, r10
+stmia r10!, {r0-r7}
+ldr r0, [sp], #4	@ Get user CPSR back (without flags)
+mrs r1, CPSR
+and r1, r1, #MaskCpsrFlags
+orr r1, r1, r0		@ Save user CPSR with updated flags
+str r1, [r11, #OffCpsr]
 cmp r12, #0
-stmne r10, {r0-r7}
-strne r8, [r10, #32]
-strne r9, [r10, #36]
-stmeq r10, {r0-r9}
+addeq r10, r10, #OffFiqRegs-32	@ If in FIQ mode, update FIQ regs (R10 is pointing to regular R8)
+stm r10, {r8, r9}
 mov pc, lr
 
 

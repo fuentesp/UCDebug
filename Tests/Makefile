@@ -22,7 +22,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-all:  s001 s101 s201 s301 s401 s501 s601 s701 s801 s802 s803 mo001 mo002 mo101 mo102 mo201 mo202 mo301 mo302 mo401 mo402 r101 r102 r200 r201 r202 r203 r204 r205 r206 r301 r302
+all:  s001 s101 s201 s301 s302 s401 s501 s601 s701 s801 s802 s803 mo001 mo002 mo101 mo102 mo201 mo202 mo301 mo302 mo401 mo402 r101 r102 r200 r201 r202 r203 r204 r205 r206 r301 r302
 
 CC = ld -Ttext=18088
 
@@ -38,6 +38,8 @@ s201.o: SWI.201_write0/s
 	as -o s201.o SWI.201_write0/s
 s301.o: SWI.301_readc/s
 	as -o s301.o SWI.301_readc/s
+s302.o:	SWI.302_readc_nonblock/s
+	as -o s302.o SWI.302_readc_nonblock/s
 s401.o: SWI.401_enteros/s
 	as -o s401.o SWI.401_enteros/s
 s501.o: SWI.501_leaveos/s

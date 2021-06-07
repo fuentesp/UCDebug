@@ -51,6 +51,7 @@
 .equ	MaskUsrMode,		0x10	@ Enter User mode
 
 @ Masks for CPSR fields
+.equ	MaskCpsrFlags,		0xF0000000
 .equ	MaskNflag,		0x80000000
 .equ	MaskZflag,		0x40000000
 .equ	MaskCflag,		0x20000000
