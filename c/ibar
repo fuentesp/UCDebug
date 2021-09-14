@@ -36,6 +36,9 @@
 /* Info dialog vars */
 struct InfoType InfoIcons[8];
 
+/* About info window */
+wimp_w InfoWin;
+
 /* Menu variables */
 wimp_menu *IconBarMenu;
 const int num_menu_options = 4;
@@ -355,37 +358,37 @@ void ChTextBGColour(wimp_w WinHandle, wimp_i IconHandle, int color) {
 /* Create the dialog box with the program info */
 wimp_w OpenInfoDialog() {
 	int i, j, Iflags;
-	wimp_window InfoWin;
+	wimp_window InfoWinDes; //Window descriptor
 	wimp_w W;
 
-	InfoWin.visible.x0 = 1766, InfoWin.visible.x1 = 2486;
-	InfoWin.visible.y0 = 644, InfoWin.visible.y1 = 900;
-	InfoWin.xscroll = 0, InfoWin.yscroll = 0;
-	InfoWin.next = wimp_TOP;
-	InfoWin.flags = wimp_WINDOW_MOVEABLE | wimp_WINDOW_AUTO_REDRAW
+	InfoWinDes.visible.x0 = 1766, InfoWinDes.visible.x1 = 2486;
+	InfoWinDes.visible.y0 = 644, InfoWinDes.visible.y1 = 900;
+	InfoWinDes.xscroll = 0, InfoWinDes.yscroll = 0;
+	InfoWinDes.next = wimp_TOP;
+	InfoWinDes.flags = wimp_WINDOW_MOVEABLE | wimp_WINDOW_AUTO_REDRAW
 			| wimp_WINDOW_TITLE_ICON | wimp_WINDOW_NEW_FORMAT;
-	InfoWin.title_fg = wimp_COLOUR_BLACK;
-	InfoWin.title_bg = wimp_COLOUR_LIGHT_GREY;
-	InfoWin.work_fg = wimp_COLOUR_BLACK;
-	InfoWin.work_bg = wimp_COLOUR_VERY_LIGHT_GREY;
-	InfoWin.scroll_outer = wimp_COLOUR_MID_LIGHT_GREY;
-	InfoWin.scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
-	InfoWin.highlight_bg = wimp_COLOUR_CREAM;
-	InfoWin.extra_flags = 0;
-	InfoWin.extent.x0 = 0, InfoWin.extent.x1 = 1280;
-	InfoWin.extent.y0 = -1024, InfoWin.extent.y1 = 0;
-	InfoWin.title_flags = wimp_ICON_TEXT | wimp_ICON_HCENTRED | wimp_ICON_VCENTRED
+	InfoWinDes.title_fg = wimp_COLOUR_BLACK;
+	InfoWinDes.title_bg = wimp_COLOUR_LIGHT_GREY;
+	InfoWinDes.work_fg = wimp_COLOUR_BLACK;
+	InfoWinDes.work_bg = wimp_COLOUR_VERY_LIGHT_GREY;
+	InfoWinDes.scroll_outer = wimp_COLOUR_MID_LIGHT_GREY;
+	InfoWinDes.scroll_inner = wimp_COLOUR_VERY_LIGHT_GREY;
+	InfoWinDes.highlight_bg = wimp_COLOUR_CREAM;
+	InfoWinDes.extra_flags = 0;
+	InfoWinDes.extent.x0 = 0, InfoWinDes.extent.x1 = 1280;
+	InfoWinDes.extent.y0 = -1024, InfoWinDes.extent.y1 = 0;
+	InfoWinDes.title_flags = wimp_ICON_TEXT | wimp_ICON_HCENTRED | wimp_ICON_VCENTRED
 			| wimp_ICON_INDIRECTED;
-	InfoWin.work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
-	InfoWin.xmin = 16, InfoWin.ymin = 16;
-	InfoWin.icon_count = 0;
+	InfoWinDes.work_flags = wimp_BUTTON_CLICK << wimp_ICON_BUTTON_TYPE_SHIFT;
+	InfoWinDes.xmin = 16, InfoWinDes.ymin = 16;
+	InfoWinDes.icon_count = 0;
 
-	InfoWin.title_data.indirected_text.text = "About this program";
-	InfoWin.title_data.indirected_text.validation = "";
-	InfoWin.title_data.indirected_text.size = strlen(
-			InfoWin.title_data.indirected_text.text);
+	InfoWinDes.title_data.indirected_text.text = "About this program";
+	InfoWinDes.title_data.indirected_text.validation = "";
+	InfoWinDes.title_data.indirected_text.size = strlen(
+			InfoWinDes.title_data.indirected_text.text);
 
-	W = wimp_create_window(&InfoWin);
+	W = wimp_create_window(&InfoWinDes);
 
 	Iflags = wimp_ICON_TEXT | wimp_ICON_VCENTRED | wimp_ICON_RJUSTIFIED
 			| wimp_ICON_INDIRECTED
@@ -421,7 +424,6 @@ wimp_w OpenInfoDialog() {
 
 /* Generate the menu structure */
 void InitialiseIconbarMenu() {
-	wimp_w InfoWin;
 	InfoWin = OpenInfoDialog();
 
 	int i, j, c;

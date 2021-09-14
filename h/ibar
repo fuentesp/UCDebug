@@ -34,6 +34,7 @@ struct InfoType {
 
 /* Public vars */
 extern struct InfoType InfoIcons[8];
+extern wimp_w InfoWin;
 
 /* Public functions */
 void ibar_initialise(void);
